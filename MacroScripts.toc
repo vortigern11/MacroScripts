@@ -1,0 +1,7 @@
+## Interface: 11200
+## Title: MacroScripts
+## Author: kawerte
+## Notes: My macros for vanilla
+## Version: GIT
+
+MacroScripts.lua
