@@ -3,5 +3,11 @@
 ## Author: kawerte
 ## Notes: My macros for vanilla
 ## Version: GIT
+## SavedVariables: MS_GLOBAL_CONFIG
+## SavedVariablesPerCharacter: MS_CONFIG
 
-MacroScripts.lua
+scripts\core.lua
+scripts\utils.lua
+scripts\variables.lua
+scripts\generic.lua
+scripts\classes\warlock.lua
