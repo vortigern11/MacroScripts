@@ -18,25 +18,36 @@ MS.isShooting = false
 -- Equipment dictionary
 MS.equipments =
 {
-    head = 1,
-    neck = 2,
-    shoulder = 3,
-    shirt = 4,
-    chest = 5,
-    waist = 6,
-    legs = 7,
-    feet = 8,
-    wrist = 9,
-    hands = 10,
-    ring1 = 11,
-    ring2 = 12,
-    trinket1 = 13,
-    trinket2 = 14,
-    back = 15,
-    main = 16,
-    off = 17,
-    relic = 18,
-    tabard = 19
+    ammo = { id = 0, prev = "" },
+    head = { id = 1, prev = "" },
+    neck = { id = 2, prev = "" },
+    shoulders = { id = 3, prev = "" },
+    shirt = { id = 4, prev = "" },
+    chest = { id = 5, prev = "" },
+    waist = { id = 6, prev = "" },
+    legs = { id = 7, prev = "" },
+    feet = { id = 8, prev = "" },
+    wrist = { id = 9, prev = "" },
+    hands = { id = 10, prev = "" },
+    ring1 = { id = 11, prev = "" },
+    ring2 = { id = 12, prev = "" },
+    trinket1 = { id = 13, prev = "" },
+    trinket2 = { id = 14, prev = "" },
+    back = { id = 15, prev = "" },
+    main = { id = 16, prev = "" },
+    off = { id = 17, prev = "" },
+    ranged = { id = 18, prev = "" },
+    tabard = { id = 19, prev = "" },
+}
+
+MS.twoHandedTypes =
+{
+    "Two-Handed Axes",
+    "Two-Handed Maces",
+    "Two-Handed Swords",
+    "Polearms",
+    "Staves",
+    "Fishing Poles"
 }
 
 -- Battlegrounds
@@ -86,8 +97,122 @@ MS.bandages =
 }
 
 -- Add the normal bandages in each battleground list
-MS:ForTableElem(MS.bandages.normal, function(_, val)
+MS:TraverseTable(MS.bandages.normal, function(_, val)
     table.insert(MS.bandages[MS.bgs[1]], val)
     table.insert(MS.bandages[MS.bgs[2]], val)
     table.insert(MS.bandages[MS.bgs[3]], val)
 end)
+
+MS.hpConsumables =
+{
+    bg =
+    {
+        "Major Healing Draught",
+        "Superior Healing Draught",
+    },
+
+    normal =
+    {
+        "Major Healthstone",
+        "Greater Healthstone",
+        "Healthstone",
+        "Lesser Healthstone",
+        "Minor Healthstone",
+
+        "Major Healing Potion",
+        "Superior Healing Potion",
+        "Combat Healing Potion",
+        "Greater Healing Potion",
+        "Healing Potion",
+        "Minor Healing Potion",
+        "Discolored Healing Potion",
+        "Lesser Healing Potion",
+    }
+}
+
+MS:TraverseTable(MS.hpConsumables.normal, function(_, val)
+    table.insert(MS.hpConsumables.bg, val)
+end)
+
+MS.mpConsumables =
+{
+    bg =
+    {
+        "Major Mana Draught",
+        "Superior Mana Draught",
+    },
+
+    normal =
+    {
+        "Mana Ruby",
+        "Mana Citrine",
+        "Mana Jade",
+        "Mana Agate",
+
+        "Major Mana Potion",
+        "Superior Mana Potion",
+        "Combat Mana Potion",
+        "Greater Mana Potion",
+        "Mana Potion",
+        "Lesser Mana Potion",
+        "Minor Mana Potion",
+    }
+}
+
+MS:TraverseTable(MS.mpConsumables.normal, function(_, val)
+    table.insert(MS.mpConsumables.bg, val)
+end)
+
+MS.bgFoods =
+{
+    [MS.bgs[1]] =
+    {
+        "Warsong Gulch Enriched Ration",
+        "Warsong Gulch Iron Ration",
+        "Warsong Gulch Field Ration"
+    },
+
+    [MS.bgs[2]] =
+    {
+        "Highlander's Enriched Ration",
+        "Defiler's Enriched Ration",
+        "Arathi Basin Enriched Ration",
+        "Highlander's Iron Ration",
+        "Defiler's Iron Ration",
+        "Arathi Basin Iron Ration",
+        "Highlander's Field Ration",
+        "Defiler's Field Ration",
+        "Arathi Basin Field Ration"
+    },
+
+    [MS.bgs[3]] =
+    {
+        "Alterac Manna Biscuit"
+    }
+}
+
+MS.fishing =
+{
+    poles =
+    {
+        "Arcanite Fishing Pole",
+        "Nat Pagle's Extreme Angler FC-5000",
+        "Dwarven Fishing Pole",
+        "Goblin Fishing Pole",
+        "Big Iron Fishing Pole",
+        "Darkwood Fishing Pole",
+        "Strong Fishing Pole",
+        "Blump Family Fishing Pole",
+        "Fishing Pole",
+    },
+
+    lures =
+    {
+        "Aquadynamic Fish Attractor",
+        "Flesh Eating Worm",
+        "Bright Baubles",
+        "Aquadynamic Fish Lens",
+        "Nightcrawlers",
+        "Shiny Bauble",
+    }
+}

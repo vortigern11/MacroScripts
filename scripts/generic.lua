@@ -1,6 +1,11 @@
 -- Reset dungeon/raid/whatever instance
-function MS:ResetInstance()
-    ResetInstances()
+function MS:ResetInstances()
+    local canReset = CanShowResetInstances()
+
+    if canReset then
+        ResetInstances()
+        MS:Say("The instances are reset.")
+    end
 end
 
 -- Get bonus exp for TurtleWoW. Max is 30 bubbles. Replenish at tents.
@@ -32,25 +37,115 @@ end
 
 -- Use best bandage for the instance
 function MS:UseBandage()
-    local hp = MS:HPPercent("player")
-
-    if hp > 70 then return end
-
     local zone = string.lower(GetRealZoneText())
     local isNotInBG = not MS:CheckIfTableIncludes(MS.bgs, zone)
 
     if isNotInBG then zone = "normal" end
 
-    local wasBandageFound = false
+    local hp = MS:HPPercent("player")
+    local items = MS.bandages[zone]
 
-    MS:ForTableElem(MS.bandages[zone], function(_, bandageName)
-        if wasBandageFound then return end
+    if hp > 70 then return end
 
-        local wantedItem = bandageName
-        local onlyOnce = true
+    local wasUsed = MS:UseBagItemFromList(items)
 
-        wasBandageFound = MS:DoForItemInBags(wantedItem, onlyOnce, function(bag, slot)
-            UseContainerItem(bag, slot)
+    return wasUsed
+end
+
+-- Use best health consumable
+function MS:UseHealthConsumable()
+    local zone = string.lower(GetRealZoneText())
+    local isNotInBG = not MS:CheckIfTableIncludes(MS.bgs, zone)
+
+    if isNotInBG then
+        zone = "normal"
+    else
+        zone = "bg"
+    end
+
+    local hp = MS:HPPercent("player")
+    local items = MS.hpConsumables[zone]
+
+    if hp > 50 then return end
+
+    local wasUsed = MS:UseBagItemFromList(items)
+
+    return wasUsed
+end
+
+-- Use best mana consumable
+function MS:UseManaConsumable()
+    local zone = string.lower(GetRealZoneText())
+    local isNotInBG = not MS:CheckIfTableIncludes(MS.bgs, zone)
+
+    if isNotInBG then
+        zone = "normal"
+    else
+        zone = "bg"
+    end
+
+    local isRogue = UnitClass("player") == "Rogue"
+    local mp = MS:MPPercent("player")
+    local items = MS.mpConsumables[zone]
+    local wasUsed = false
+
+    if mp > 50 then return end
+
+    if (isRogue and mp < 40) then
+        wasUsed = MS:UseBagItem("Thistle Tea")
+    else
+        wasUsed = MS:UseBagItemFromList(items)
+    end
+
+    return wasUsed
+end
+
+-- Use best battleground food which restores both health and mana
+function MS:UseBGFood()
+    local zone = string.lower(GetRealZoneText())
+    local isNotInBG = not MS:CheckIfTableIncludes(MS.bgs, zone)
+
+    if isNotInBG then return end
+
+    local hp = MS:HPPercent("player")
+    local mp = MS:MPPercent("player")
+    local items = MS.bgFoods[zone]
+
+    if (hp > 60 and mp > 60) then return end
+
+    local wasUsed = MS:UseBagItemFromList(items)
+
+    return wasUsed
+end
+
+function MS:SwapFishing()
+    local mainItemLink = MS:GetEquipmentItemLink("main")
+    local mainItem = MS:ItemLinkToName(mainItemLink)
+    local poles = MS.fishing.poles
+    local isPoleEquipped = MS:CheckIfTableIncludes(poles, mainItem)
+
+    if isPoleEquipped then
+        local prevMainItemLink = MS.equipments["main"].prev
+        local wasTwoHanded = MS:CheckIfTwoHanded(prevMainItemLink)
+        local prevMainItemName = MS:ItemLinkToName(prevMainItemLink)
+
+        -- equip main hand
+        local wasMainEquipped = MS:EquipItem(prevMainItemName, "main")
+
+        -- equip off hand
+        if not wasTwoHanded then
+            local prevOffItemLink = MS.equipments["off"].prev
+            local prevOffItemName = MS:ItemLinkToName(prevOffItemLink)
+            local wasOffEquipped = MS:EquipItem(prevOffItemName, "off")
+        end
+    else
+        -- strip off hand
+        MS:StripItem("off")
+
+        -- swap main with fishing pole
+        MS:TraverseTable(poles, function(_, pole)
+            local wasEquipped = MS:EquipItem(pole, "main")
+            if wasEquipped then return "break loop" end
         end)
-    end)
+    end
 end
