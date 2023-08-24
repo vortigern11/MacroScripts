@@ -149,3 +149,12 @@ function MS:SwapFishing()
         end)
     end
 end
+
+function MS:PetFollow()
+    local hasPet = HasPetUI()
+
+    if hasPet then
+        PetFollow()
+        PetStopAttack()
+    end
+end

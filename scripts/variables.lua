@@ -14,6 +14,7 @@
 MS.isRegenEnabled = true
 MS.isAttacking = false
 MS.isShooting = false
+MS.warlockDotIdx = 1
 
 -- Equipment dictionary
 MS.equipments =

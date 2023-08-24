@@ -267,20 +267,31 @@ end
 
 -- Checks if spell is learned and if on cooldown
 function MS:FindSpell(name)
-    local spellId = 1
-    local spell = GetSpellName(spellId, BOOKTYPE_SPELL)
-    local wasFound = false
-    local onCooldown = false
+    local wasFound, onCooldown = false, false
 
-    while(spell) do
-        if spell == name then
-            wasFound = true
-            onCooldown = GetSpellCooldown(spellId, BOOKTYPE_SPELL) ~= 0
-            break
+    local function Partial(booktype)
+        local spellId = 1
+        local spell = GetSpellName(spellId, booktype)
+        local wasFound, onCooldown = false, false
+
+        while(spell) do
+            if spell == name then
+                wasFound = true
+                onCooldown = GetSpellCooldown(spellId, booktype) ~= 0
+                break
+            end
+
+            spellId = spellId + 1
+            spell = GetSpellName(spellId, booktype)
         end
 
-        spellId = spellId + 1
-        spell = GetSpellName(spellId, BOOKTYPE_SPELL)
+        return wasFound, onCooldown
+    end
+
+    wasFound, onCooldown = Partial(BOOKTYPE_SPELL)
+
+    if not wasFound then
+        wasFound, onCooldown = Partial(BOOKTYPE_PET)
     end
 
     return wasFound, onCooldown
@@ -311,8 +322,7 @@ local function FindBuffPartial(wantedBuff, unit, auraType)
     local icon, stacks = getBuff(unit, idx)
 
     while icon do
-        MS_T:SetOwner(WorldFrame, "ANCHOR_NONE")
-        MS_T:ClearLines()
+        MS_T:SetOwner(UIParent, "ANCHOR_NONE")
 
         if auraType == "debuff" then
             MS_T:SetUnitDebuff(unit, idx)
@@ -321,6 +331,7 @@ local function FindBuffPartial(wantedBuff, unit, auraType)
         end
 
         local currBuff = MS_TTextLeft1:GetText()
+        MS_T:Hide()
 
         if currBuff == wantedBuff then
             wasFound = true

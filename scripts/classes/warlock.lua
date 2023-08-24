@@ -194,11 +194,41 @@ end
 function MS:WL_Replenish()
     local mp = MS:MPPercent("player")
 
-    -- 1) if low on mana - regen
-    if mp < 98 then
+    -- 0) cast Soul Link if possible
+    local hasPet = HasPetUI()
+    local hasSoulLink = MS:FindBuff("Soul Link", "player")
+
+    if hasPet and not hasSoulLink and mp > 20 then
+        local hasCastSoulLink = MS:CastSpell("Soul Link")
+
+        if hasCastSoulLink then return end
+    end
+
+    -- 1) otherwise cast self-buff
+    if mp > 20 then
+        local buffs = { "Demon Armor", "Demon Skin" }
+        local wasFound = false
+
+        MS:TraverseTable(buffs, function(_, buffName)
+            wasFound = MS:FindBuff(buffName, "player")
+            if wasFound then return "break loop" end
+        end)
+
+        if not wasFound then
+            local hasCast = MS:CastSpell(buffs[0])
+
+            if not hasCast then
+                MS:CastSpell(buffs[1])
+                return
+            end
+        end
+    end
+
+    -- 2) if low on mana - regen
+    if mp < 95 then
         -- 0) Maybe use Life Tap?
         local hp = MS:HPPercent("player")
-        if hp > 80 then
+        if hp > 75 then
             MS:CastSpell("Life Tap")
             return
         end
@@ -221,29 +251,18 @@ function MS:WL_Replenish()
         return
     end
 
-    -- 2) otherwise cast self-buff
-    local buffs = { "Demon Armor", "Demon Skin" }
-    local wasFound = false
-
-    MS:TraverseTable(buffs, function(_, buffName)
-        wasFound = MS:FindBuff(buffName, "player")
-        if wasFound then return "break loop" end
-    end)
-
-    if not wasFound then
-        local hasCast = MS:CastSpell(buffs[0])
-
-        if not hasCast then
-            MS:CastSpell(buffs[1])
-            return
-        end
-    end
-
     --3) create Healthstone
     MS:WL_Healthstone()
 end
 
-function MS:WL_ApplyDOT()
+function MS:WL_AffliDots()
+    -- local inRaid = UnitExists("raid1")
+
+    -- if inRaid then
+    --     MS:Print("This macro should be used outside of raids")
+    --     return
+    -- end
+
     -- 0) Check if valid target
     local isNotValidTarget = not UnitExists("target") or UnitIsDeadOrGhost("target") or not UnitIsEnemy("player", "target")
 
@@ -267,32 +286,226 @@ function MS:WL_ApplyDOT()
     local haveShadowTrance = MS:FindBuff("Shadow Trance", "player")
     local mp = MS:MPPercent("player")
 
-    if haveShadowTrance and mp > 50 then
+    if haveShadowTrance and mp > 30 then
         local hasCast = MS:CastSpell("Shadow Bolt")
         if hasCast then return end
     end
 
-    -- 3) Apply dot
+    -- 3) Apply dot in solo
+    local spellIsCast = false
     local spells = { "Siphon Life", "Corruption", "Curse of Agony" }
+    local otherCurses =
+    {
+        "Curse of Recklessness",
+        "Curse of Exhaustion",
+        "Curse of Shadow",
+        "Curse of the Elements",
+        "Curse of Tongues",
+        "Curse of Weakness"
+    }
 
     MS:TraverseTable(spells, function(_, spellName)
-        -- dot on target, cast by me and long time remaining
+        -- dot on target, cast by me
         local wasFound = MS:FindBuff(spellName, "target")
 
         if not wasFound then
-            -- cast Amplify Curse if about to cast Curse of Agony
-            local _, isGCD = MS:FindSpell("Curse of Agony")
             local spellIsAgony = spellName == "Curse of Agony"
 
-            if not isGCD and spellIsAgony then
-                local hasCastAmplify = MS:CastSpell("Amplify Curse")
-                if hasCastAmplify then return "break loop" end
+            if spellIsAgony then
+                -- Don't cast Agony if target has another curse
+                local hasOtherCurse = false
+
+                MS:TraverseTable(otherCurses, function(_, curseName)
+                    hasOtherCurse = MS:FindBuff(curseName, "target")
+                    if hasOtherCurse then return "break loop" end
+                end)
+
+                if hasOtherCurse then return end
+
+                -- cast Amplify Curse if about to cast Curse of Agony
+                local _, isGCD = MS:FindSpell("Curse of Agony")
+
+                if not isGCD then
+                    local hasCastAmplify = MS:CastSpell("Amplify Curse")
+
+                    if hasCastAmplify then
+                        spellIsCast = true
+                        return "break loop"
+                    end
+                end
             end
 
             local hasCast = MS:CastSpell(spellName)
-            if hasCast then return "break loop" end
+
+            if hasCast then
+                spellIsCast = true
+                return "break loop"
+            end
         end
     end)
+
+    -- 4) In case there are other warlocks in the group
+    -- since in vanilla you can't get info about who cast the DOT.....
+    local inParty = UnitExists("party1")
+
+    if not spellIsCast and inParty then
+        local hasAnotherWarlock = false
+
+        for i = 1, 4 do
+            local currUnit = "party" .. i
+            hasAnotherWarlock = UnitExists(currUnit) and UnitClass(currUnit) == "Warlock"
+            if hasAnotherWarlock then break end
+        end
+
+        if hasAnotherWarlock then
+            local idx = MS.warlockDotIdx
+            local spellIsAgony = spells[idx] == "Curse of Agony"
+
+            if spellIsAgony then
+                -- Don't cast Agony if target has another curse
+                local hasOtherCurse = false
+
+                MS:TraverseTable(otherCurses, function(_, curseName)
+                    hasOtherCurse = MS:FindBuff(curseName, "target")
+                    if hasOtherCurse then return "break loop" end
+                end)
+
+                if hasOtherCurse then
+                    -- CoA is the last index, so start from the beginning
+                    idx = 1
+                else
+                    -- cast Amplify Curse if about to cast Curse of Agony
+                    local _, isGCD = MS:FindSpell("Curse of Agony")
+
+                    if not isGCD then
+                        local hasCastAmplify = MS:CastSpell("Amplify Curse")
+                        if hasCastAmplify then return end
+                    end
+                end
+            end
+
+            local hasCast = MS:CastSpell(spells[idx])
+
+            if hasCast then
+                idx = idx + 1
+                if idx > 3 then idx = 1 end
+                MS.warlockDotIdx = idx
+                return
+            end
+        end
+    end
+end
+
+function MS:WL_DemoDots()
+    -- local inRaid = UnitExists("raid1")
+
+    -- if inRaid then
+    --     MS:Print("This macro should be used outside of raids")
+    --     return
+    -- end
+
+    -- 0) Check if valid target
+    local isNotValidTarget = not UnitExists("target") or UnitIsDeadOrGhost("target") or not UnitIsEnemy("player", "target")
+
+    if isNotValidTarget then
+        TargetNearestEnemy()
+    end
+
+    -- 1) Attack with pet
+    local hasPet = HasPetUI()
+
+    if hasPet then
+        local isNotImp = UnitCreatureFamily("pet") ~= "Imp"
+        local petHasNoTarget = not UnitExists("pettarget") or UnitIsDeadOrGhost("pettarget")
+
+        if isNotImp and petHasNoTarget then
+            PetAttack()
+        end
+    end
+
+    -- 2) Apply dot in solo
+    local spellIsCast = false
+    local spells = { "Immolate", "Corruption", "Curse of Agony" }
+    local otherCurses =
+    {
+        "Curse of Recklessness",
+        "Curse of Exhaustion",
+        "Curse of Shadow",
+        "Curse of the Elements",
+        "Curse of Tongues",
+        "Curse of Weakness"
+    }
+
+    MS:TraverseTable(spells, function(_, spellName)
+        -- dot on target, cast by me
+        local wasFound = MS:FindBuff(spellName, "target")
+
+        if not wasFound then
+            local spellIsAgony = spellName == "Curse of Agony"
+
+            if spellIsAgony then
+                -- Don't cast Agony if target has another curse
+                local hasOtherCurse = false
+
+                MS:TraverseTable(otherCurses, function(_, curseName)
+                    hasOtherCurse = MS:FindBuff(curseName, "target")
+                    if hasOtherCurse then return "break loop" end
+                end)
+
+                if hasOtherCurse then return end
+            end
+
+            local hasCast = MS:CastSpell(spellName)
+
+            if hasCast then
+                spellIsCast = true
+                return "break loop"
+            end
+        end
+    end)
+
+    -- 3) In case there are other warlocks in the group
+    -- since in vanilla you can't get info about who cast the DOT.....
+    local inParty = UnitExists("party1")
+
+    if not spellIsCast and inParty then
+        local hasAnotherWarlock = false
+
+        for i = 1, 4 do
+            local currUnit = "party" .. i
+            hasAnotherWarlock = UnitExists(currUnit) and UnitClass(currUnit) == "Warlock"
+            if hasAnotherWarlock then break end
+        end
+
+        if hasAnotherWarlock then
+            local idx = MS.warlockDotIdx
+            local spellIsAgony = spells[idx] == "Curse of Agony"
+
+            if spellIsAgony then
+                -- Don't cast Agony if target has another curse
+                local hasOtherCurse = false
+
+                MS:TraverseTable(otherCurses, function(_, curseName)
+                    hasOtherCurse = MS:FindBuff(curseName, "target")
+                    if hasOtherCurse then return "break loop" end
+                end)
+
+                if hasOtherCurse then
+                    -- CoA is the last index, so start from the beginning
+                    idx = 1
+                end
+            end
+
+            local hasCast = MS:CastSpell(spells[idx])
+
+            if hasCast then
+                idx = idx + 1
+                if idx > 3 then idx = 1 end
+                MS.warlockDotIdx = idx
+                return
+            end
+        end
+    end
 end
 
 function MS:WL_Exhaust()
@@ -344,31 +557,113 @@ function MS:WL_SummonOrBanish()
     local creatureType = UnitCreatureType("target")
     local isValidCreatureType = creatureType == "Demon" or creatureType == "Elemental"
 
-    if isAlive and isNotPlayer and isPartyMember then
+    if isValidCreatureType then
+        MS:CastSpell("Banish")
+    elseif isAlive and isNotPlayer and isPartyMember then
         local targetName = UnitName("target")
 
         MS:Say("I'm summoning " .. targetName)
         MS:CastSpell("Ritual of Summoning")
-    elseif validCreatureType then
-        MS:CastSpell("Banish")
     end
 end
 
-function MS:WS_Immolate()
-    -- if not wearing Firestone:
-        -- check if two-handed -> return if true
-        -- try to equip firestone (if in the bag)
-    -- else
-        -- cast Immolate
+function MS:WL_DevourMagic()
+    local isAlive = UnitExists("target") and not UnitIsDeadOrGhost("target")
+    local isFriend = isAlive and UnitIsPlayer("target") and UnitIsFriend("player", "target")
+
+    if not isFriend then TargetUnit("player") end
+
+    local hasCast = MS:CastSpell("Devour Magic")
+
+    if not isFriend then TargetLastTarget() end
+end
+
+function MS:WL_Sacrifice()
+    local hasPet = HasPetUI()
+    local hasVoid = hasPet and UnitCreatureFamily("pet") == "Voidwalker"
+    local hasBubble = MS:FindBuff("Sacrifice", "player")
+    local hasDemSac = MS:FindBuff("Demonic Sacrifice", "player")
+    local hasSoulLink = MS:FindBuff("Soul Link", "player")
+    local hasFelDom = MS:FindBuff("Fel Domination", "player")
+    local hp = MS:HPPercent("player")
+
+    if hasVoid then
+        if not hasBubble then
+            local hasSacrificed = MS:CastSpell("Sacrifice")
+            if hasSacrificed then return end
+        end
+
+        if not hasDemSac and hp < 40 then
+            local hasCastDemSac = MS:CastSpell("Demonic Sacrifice")
+            if hasCastDemSac then return end
+        end
+
+        if not hasSoulLink then
+            local hasCastSoulLink = MS:CastSpell("Soul Link")
+            if hasCastSoulLink then return end
+        end
+    else
+        if not hasFelDom then
+            local hasCastFel = MS:CastSpell("Fel Domination")
+            if hasCastFel then return end
+        end
+
+        local hasCastVoid = MS:CastSpell("Summon Voidwalker")
+        if hasCastVoid then return end
+    end
+
+    MS:WL_Healthstone()
+end
+
+function MS:WL_Shadowbolt()
+    -- 0) Check if valid target
+    local isNotValidTarget = not UnitExists("target") or UnitIsDeadOrGhost("target") or not UnitIsEnemy("player", "target")
+
+    if isNotValidTarget then
+        TargetNearestEnemy()
+    end
+
+    -- 1) Attack with pet
+    local hasPet = HasPetUI()
+
+    if hasPet then
+        local isNotImp = UnitCreatureFamily("pet") ~= "Imp"
+        local petHasNoTarget = not UnitExists("pettarget") or UnitIsDeadOrGhost("pettarget")
+
+        if isNotImp and petHasNoTarget then
+            PetAttack()
+        end
+    end
+
+    -- 2) Cast Shadowbolt
+    MS:CastSpell("Shadow Bolt")
 end
 
 function MS:WL_Drain()
-    -- differentiate if enemy is PVP target and mana class
+    -- 0) Check if valid target
+    local isNotValidTarget = not UnitExists("target") or UnitIsDeadOrGhost("target") or not UnitIsEnemy("player", "target")
 
-    -- if myHP > 60% and enemyHP < 25%
-    -- cast Drain Soul
-    -- elseif myHP > 90% and enemy has mana
-    -- cast Drain Mana
-    -- elseif myHP < 80% then
-    -- cast Dran Life
+    if isNotValidTarget then
+        TargetNearestEnemy()
+    end
+
+    local myHP = MS:HPPercent("player")
+    local enemyHP = MS:HPPercent("target")
+    local enemyIsPlayer = UnitIsPlayer("target")
+    local enemyHasMana = false
+
+    if enemyIsPlayer then
+        local targetClass = isPlayer and UnitClass("target")
+        local enemyMP = MS:MPPercent("target")
+
+        enemyHasMana = targetClass ~= "Warrior" and targetClass ~= "Rogue" and enemyMP > 0
+    end
+
+    if enemyHasMana and myHP > 70 then
+        MS:CastSpell("Drain Mana")
+    elseif myHP > 50 and enemyHP < 30 then
+        MS:CastSpell("Drain Soul")
+    else
+        MS:CastSpell("Drain Life")
+    end
 end
