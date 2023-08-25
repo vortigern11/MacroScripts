@@ -158,3 +158,17 @@ function MS:PetFollow()
         PetStopAttack()
     end
 end
+
+function MS:PetAttack()
+    local hasPet = HasPetUI()
+
+    if hasPet then
+        local isNotImp = UnitCreatureFamily("pet") ~= "Imp"
+        local petHasNoTarget = not UnitExists("pettarget") or UnitIsDeadOrGhost("pettarget")
+        local shouldAttackNewTarget = petHasNoTarget or MS.petIsAttacking
+
+        if isNotImp and shouldAttackNewTarget then
+            PetAttack()
+        end
+    end
+end

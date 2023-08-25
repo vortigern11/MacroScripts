@@ -11,14 +11,12 @@
 --     end
 -- end
 
-MS.isRegenEnabled = true
-MS.isAttacking = false
-MS.isShooting = false
+MS.inCombat = false
+MS.petIsAttacking = false
 MS.warlockDotIdx = 1
 
 -- Equipment dictionary
-MS.equipments =
-{
+MS.equipments = {
     ammo = { id = 0, prev = "" },
     head = { id = 1, prev = "" },
     neck = { id = 2, prev = "" },
@@ -41,8 +39,7 @@ MS.equipments =
     tabard = { id = 19, prev = "" },
 }
 
-MS.twoHandedTypes =
-{
+MS.twoHandedTypes = {
     "Two-Handed Axes",
     "Two-Handed Maces",
     "Two-Handed Swords",
@@ -55,17 +52,14 @@ MS.twoHandedTypes =
 MS.bgs = { "warsong gulch", "arathi basin", "alterac valley"}
 
 -- Bandages
-MS.bandages =
-{
-    [MS.bgs[1]] =
-    {
+MS.bandages = {
+    [MS.bgs[1]] = {
         "Warsong Gulch Runecloth Bandage",
         "Warsong Gulch Mageweave Bandage",
         "Warsong Gulch Silk Bandage",
     },
 
-    [MS.bgs[2]] =
-    {
+    [MS.bgs[2]] = {
         "Highlander's Runecloth Bandage",
         "Defiler's Runecloth Bandage",
         "Arathi Basin Runecloth Bandage",
@@ -77,13 +71,11 @@ MS.bandages =
         "Arathi Basin Silk Bandage",
     },
 
-    [MS.bgs[3]] =
-    {
+    [MS.bgs[3]] = {
         "Alterac Heavy Runecloth Bandage",
     },
 
-    normal =
-    {
+    normal = {
         "Heavy Runecloth Bandage",
         "Runecloth Bandage",
         "Heavy Mageweave Bandage",
@@ -104,16 +96,13 @@ MS:TraverseTable(MS.bandages.normal, function(_, val)
     table.insert(MS.bandages[MS.bgs[3]], val)
 end)
 
-MS.hpConsumables =
-{
-    bg =
-    {
+MS.hpConsumables = {
+    bg = {
         "Major Healing Draught",
         "Superior Healing Draught",
     },
 
-    normal =
-    {
+    normal = {
         "Major Healthstone",
         "Greater Healthstone",
         "Healthstone",
@@ -135,16 +124,13 @@ MS:TraverseTable(MS.hpConsumables.normal, function(_, val)
     table.insert(MS.hpConsumables.bg, val)
 end)
 
-MS.mpConsumables =
-{
-    bg =
-    {
+MS.mpConsumables = {
+    bg = {
         "Major Mana Draught",
         "Superior Mana Draught",
     },
 
-    normal =
-    {
+    normal = {
         "Mana Ruby",
         "Mana Citrine",
         "Mana Jade",
@@ -164,17 +150,14 @@ MS:TraverseTable(MS.mpConsumables.normal, function(_, val)
     table.insert(MS.mpConsumables.bg, val)
 end)
 
-MS.bgFoods =
-{
-    [MS.bgs[1]] =
-    {
+MS.bgFoods = {
+    [MS.bgs[1]] = {
         "Warsong Gulch Enriched Ration",
         "Warsong Gulch Iron Ration",
         "Warsong Gulch Field Ration"
     },
 
-    [MS.bgs[2]] =
-    {
+    [MS.bgs[2]] = {
         "Highlander's Enriched Ration",
         "Defiler's Enriched Ration",
         "Arathi Basin Enriched Ration",
@@ -186,16 +169,13 @@ MS.bgFoods =
         "Arathi Basin Field Ration"
     },
 
-    [MS.bgs[3]] =
-    {
+    [MS.bgs[3]] = {
         "Alterac Manna Biscuit"
     }
 }
 
-MS.fishing =
-{
-    poles =
-    {
+MS.fishing = {
+    poles = {
         "Arcanite Fishing Pole",
         "Nat Pagle's Extreme Angler FC-5000",
         "Dwarven Fishing Pole",
@@ -206,9 +186,7 @@ MS.fishing =
         "Blump Family Fishing Pole",
         "Fishing Pole",
     },
-
-    lures =
-    {
+    lures = {
         "Aquadynamic Fish Attractor",
         "Flesh Eating Worm",
         "Bright Baubles",

@@ -51,6 +51,8 @@ local wl = CreateFrame("Frame")
 wl:RegisterEvent("ADDON_LOADED")
 wl:RegisterEvent("PLAYER_XP_UPDATE")
 wl:RegisterEvent("PLAYER_PVP_KILLS_CHANGED")
+MS:RegisterEvent("PLAYER_TARGET_CHANGED")
+
 wl:SetScript("OnEvent", function()
     local playerIsNotWarlock = UnitClass("player") ~= "Warlock"
 
@@ -62,18 +64,19 @@ wl:SetScript("OnEvent", function()
         LimitSoulshards()
     elseif event == "PLAYER_PVP_KILLS_CHANGED" then
         LimitSoulshards()
+    elseif event == "PLAYER_TARGET_CHANGED" then
+        MS.warlockDotIdx = 1
     end
 end)
 
 function MS:WL_Soulstone()
     -- 0) Find highest level of the spell learned
-    local spellToItemDict =
-    {
-        { "Create Soulstone (Major)", "Major Soulstone" },
-        { "Create Soulstone (Greater)", "Greater Soulstone" },
+    local spellToItemDict = {
+        { "Create Soulstone (Major)()", "Major Soulstone" },
+        { "Create Soulstone (Greater)()", "Greater Soulstone" },
         { "Create Soulstone", "Soulstone" },
-        { "Create Soulstone (Lesser)", "Lesser Soulstone" },
-        { "Create Soulstone (Minor)", "Minor Soulstone" },
+        { "Create Soulstone (Lesser)()", "Lesser Soulstone" },
+        { "Create Soulstone (Minor)()", "Minor Soulstone" },
     }
     local stoneSpellName = ""
     local stoneItemName = ""
@@ -110,13 +113,12 @@ end
 
 function MS:WL_Healthstone()
     -- 0) Find highest level of the spell learned
-    local spellToItemDict =
-    {
-        { "Create Healthstone (Major)", "Major Healthstone" },
-        { "Create Healthstone (Greater)", "Greater Healthstone" },
+    local spellToItemDict = {
+        { "Create Healthstone (Major)()", "Major Healthstone" },
+        { "Create Healthstone (Greater)()", "Greater Healthstone" },
         { "Create Healthstone", "Healthstone" },
-        { "Create Healthstone (Lesser)", "Lesser Healthstone" },
-        { "Create Healthstone (Minor)", "Minor Healthstone" },
+        { "Create Healthstone (Lesser)()", "Lesser Healthstone" },
+        { "Create Healthstone (Minor)()", "Minor Healthstone" },
     }
     local stoneSpellName = ""
     local stoneItemName = ""
@@ -139,20 +141,23 @@ function MS:WL_Healthstone()
     if wasItemUsed then return end
 
     -- 2) If spell not on cd, create stone
-    local isStoneInBag = MS:IsItemInBag(stoneItemName)
+    local notInCombat = not MS.inCombat
 
-    if not isStoneInBag then
-        MS:CastSpell(stoneSpellName)
-        return
+    if notInCombat then
+        local isStoneInBag = MS:IsItemInBag(stoneItemName)
+
+        if not isStoneInBag then
+            MS:CastSpell(stoneSpellName)
+            return
+        end
     end
 end
 
 function MS:WL_Spellstone()
     -- 0) Find highest level of the spell learned
-    local spellToItemDict =
-    {
-        { "Create Spellstone (Major)", "Major Spellstone" },
-        { "Create Spellstone (Greater)", "Greater Spellstone" },
+    local spellToItemDict = {
+        { "Create Spellstone (Major)()", "Major Spellstone" },
+        { "Create Spellstone (Greater)()", "Greater Spellstone" },
         { "Create Spellstone", "Spellstone" },
     }
     local stoneSpellName = ""
@@ -174,7 +179,7 @@ function MS:WL_Spellstone()
     local offhandItemLink = MS:GetEquipmentItemLink("off")
     local offhandItem = MS:ItemLinkToName(offhandItemLink)
     local stoneIsEquipped = offhandItem == stoneName
-    local notInCombat = MS.isRegenEnabled
+    local notInCombat = not MS.inCombat
 
     if (stoneIsEquipped and notInCombat) then
         MS:UseEquipment("off")
@@ -228,7 +233,7 @@ function MS:WL_Replenish()
     if mp < 95 then
         -- 0) Maybe use Life Tap?
         local hp = MS:HPPercent("player")
-        if hp > 75 then
+        if hp > 70 then
             MS:CastSpell("Life Tap")
             return
         end
@@ -256,31 +261,15 @@ function MS:WL_Replenish()
 end
 
 function MS:WL_AffliDots()
-    -- local inRaid = UnitExists("raid1")
-
-    -- if inRaid then
-    --     MS:Print("This macro should be used outside of raids")
-    --     return
-    -- end
-
     -- 0) Check if valid target
-    local isNotValidTarget = not UnitExists("target") or UnitIsDeadOrGhost("target") or not UnitIsEnemy("player", "target")
+    local isNotValidTarget = not UnitExists("target") or UnitIsDeadOrGhost("target") or UnitIsFriend("player", "target")
 
     if isNotValidTarget then
         TargetNearestEnemy()
     end
 
     -- 1) Attack with pet
-    local hasPet = HasPetUI()
-
-    if hasPet then
-        local isNotImp = UnitCreatureFamily("pet") ~= "Imp"
-        local petHasNoTarget = not UnitExists("pettarget") or UnitIsDeadOrGhost("pettarget")
-
-        if isNotImp and petHasNoTarget then
-            PetAttack()
-        end
-    end
+    MS:PetAttack()
 
     -- 2) Cast Shadowbolt if I have Shadow Trance
     local haveShadowTrance = MS:FindBuff("Shadow Trance", "player")
@@ -294,8 +283,7 @@ function MS:WL_AffliDots()
     -- 3) Apply dot in solo
     local spellIsCast = false
     local spells = { "Siphon Life", "Corruption", "Curse of Agony" }
-    local otherCurses =
-    {
+    local otherCurses = {
         "Curse of Recklessness",
         "Curse of Exhaustion",
         "Curse of Shadow",
@@ -349,7 +337,8 @@ function MS:WL_AffliDots()
     local inParty = UnitExists("party1")
 
     if not spellIsCast and inParty then
-        local hasAnotherWarlock = false
+        -- assume there is another warlock if in raid
+        local hasAnotherWarlock = UnitExists("raid1")
 
         for i = 1, 4 do
             local currUnit = "party" .. i
@@ -397,37 +386,20 @@ function MS:WL_AffliDots()
 end
 
 function MS:WL_DemoDots()
-    -- local inRaid = UnitExists("raid1")
-
-    -- if inRaid then
-    --     MS:Print("This macro should be used outside of raids")
-    --     return
-    -- end
-
     -- 0) Check if valid target
-    local isNotValidTarget = not UnitExists("target") or UnitIsDeadOrGhost("target") or not UnitIsEnemy("player", "target")
+    local isNotValidTarget = not UnitExists("target") or UnitIsDeadOrGhost("target") or UnitIsFriend("player", "target")
 
     if isNotValidTarget then
         TargetNearestEnemy()
     end
 
     -- 1) Attack with pet
-    local hasPet = HasPetUI()
-
-    if hasPet then
-        local isNotImp = UnitCreatureFamily("pet") ~= "Imp"
-        local petHasNoTarget = not UnitExists("pettarget") or UnitIsDeadOrGhost("pettarget")
-
-        if isNotImp and petHasNoTarget then
-            PetAttack()
-        end
-    end
+    MS:PetAttack()
 
     -- 2) Apply dot in solo
     local spellIsCast = false
     local spells = { "Immolate", "Corruption", "Curse of Agony" }
-    local otherCurses =
-    {
+    local otherCurses = {
         "Curse of Recklessness",
         "Curse of Exhaustion",
         "Curse of Shadow",
@@ -469,7 +441,8 @@ function MS:WL_DemoDots()
     local inParty = UnitExists("party1")
 
     if not spellIsCast and inParty then
-        local hasAnotherWarlock = false
+        -- assume there is another warlock if in raid
+        local hasAnotherWarlock = UnitExists("raid1")
 
         for i = 1, 4 do
             local currUnit = "party" .. i
@@ -510,7 +483,7 @@ end
 
 function MS:WL_Exhaust()
     -- 0) Check if valid target
-    local isNotValidTarget = not UnitExists("target") or UnitIsDeadOrGhost("target") or not UnitIsEnemy("player", "target")
+    local isNotValidTarget = not UnitExists("target") or UnitIsDeadOrGhost("target") or UnitIsFriend("player", "target")
 
     if isNotValidTarget then
         TargetNearestEnemy()
@@ -531,7 +504,7 @@ end
 
 function MS:WL_SoulFire()
     -- 0) Check if valid target
-    local isNotValidTarget = not UnitExists("target") or UnitIsDeadOrGhost("target") or not UnitIsEnemy("player", "target")
+    local isNotValidTarget = not UnitExists("target") or UnitIsDeadOrGhost("target") or UnitIsFriend("player", "target")
 
     if isNotValidTarget then
         TargetNearestEnemy()
@@ -552,18 +525,20 @@ end
 
 function MS:WL_SummonOrBanish()
     local isAlive = UnitExists("target") and not UnitIsDeadOrGhost("target")
-    local isNotPlayer = not UnitIsUnit("player", "target")
+    local isNotMe = not UnitIsUnit("player", "target")
     local isPartyMember = UnitInParty("target") or UnitInRaid("target")
     local creatureType = UnitCreatureType("target")
     local isValidCreatureType = creatureType == "Demon" or creatureType == "Elemental"
 
-    if isValidCreatureType then
-        MS:CastSpell("Banish")
-    elseif isAlive and isNotPlayer and isPartyMember then
+    if isAlive and isNotMe and isPartyMember then
         local targetName = UnitName("target")
 
         MS:Say("I'm summoning " .. targetName)
         MS:CastSpell("Ritual of Summoning")
+    elseif isValidCreatureType then
+        MS:CastSpell("Banish")
+    else
+        MS:CastSpell("Fear")
     end
 end
 
@@ -603,45 +578,32 @@ function MS:WL_Sacrifice()
             if hasCastSoulLink then return end
         end
     else
-        if not hasFelDom then
-            local hasCastFel = MS:CastSpell("Fel Domination")
-            if hasCastFel then return end
-        end
+        local hasCastFel = MS:CastSpell("Fel Domination")
 
-        local hasCastVoid = MS:CastSpell("Summon Voidwalker")
-        if hasCastVoid then return end
+        if hasCastFel or hasFelDom then
+            local hasCastVoid = MS:CastSpell("Summon Voidwalker")
+
+            if hasCastVoid then return end
+        end
     end
 
     MS:WL_Healthstone()
 end
 
 function MS:WL_Shadowbolt()
-    -- 0) Check if valid target
-    local isNotValidTarget = not UnitExists("target") or UnitIsDeadOrGhost("target") or not UnitIsEnemy("player", "target")
+    local isNotValidTarget = not UnitExists("target") or UnitIsDeadOrGhost("target") or UnitIsFriend("player", "target")
 
     if isNotValidTarget then
         TargetNearestEnemy()
     end
 
-    -- 1) Attack with pet
-    local hasPet = HasPetUI()
-
-    if hasPet then
-        local isNotImp = UnitCreatureFamily("pet") ~= "Imp"
-        local petHasNoTarget = not UnitExists("pettarget") or UnitIsDeadOrGhost("pettarget")
-
-        if isNotImp and petHasNoTarget then
-            PetAttack()
-        end
-    end
-
-    -- 2) Cast Shadowbolt
+    MS:PetAttack()
     MS:CastSpell("Shadow Bolt")
 end
 
 function MS:WL_Drain()
     -- 0) Check if valid target
-    local isNotValidTarget = not UnitExists("target") or UnitIsDeadOrGhost("target") or not UnitIsEnemy("player", "target")
+    local isNotValidTarget = not UnitExists("target") or UnitIsDeadOrGhost("target") or UnitIsFriend("player", "target")
 
     if isNotValidTarget then
         TargetNearestEnemy()
@@ -651,6 +613,14 @@ function MS:WL_Drain()
     local enemyHP = MS:HPPercent("target")
     local enemyIsPlayer = UnitIsPlayer("target")
     local enemyHasMana = false
+    local shardsAmount = 0
+    local onlyOnce = false
+
+    MS:DoForItemInBags("Soul Shard", onlyOnce, function(bag, slot)
+        shardsAmount = shardsAmount + 1
+    end)
+
+    local needShards = shardsAmount < MS_CONFIG.soulshards
 
     if enemyIsPlayer then
         local targetClass = isPlayer and UnitClass("target")
@@ -659,11 +629,26 @@ function MS:WL_Drain()
         enemyHasMana = targetClass ~= "Warrior" and targetClass ~= "Rogue" and enemyMP > 0
     end
 
-    if enemyHasMana and myHP > 70 then
-        MS:CastSpell("Drain Mana")
-    elseif myHP > 50 and enemyHP < 30 then
-        MS:CastSpell("Drain Soul")
-    else
-        MS:CastSpell("Drain Life")
+    if needShards and myHP > 60 and enemyHP < 30 then
+        local hasCast MS:CastSpell("Drain Soul")
+        if hasCast then return end
     end
+
+    if enemyHasMana and myHP > 70 then
+        local hasCast = MS:CastSpell("Drain Mana")
+        if hasCast then return end
+    end
+
+    local hasCast = MS:CastSpell("Drain Life")
+    if hasCast then return end
+end
+
+function MS:WL_Fear()
+    local petShouldStopAttacking = MS.petIsAttacking and UnitIsUnit("target", "pettarget")
+
+    if petShouldStopAttacking then
+        MS:PetFollow()
+    end
+
+    MS:CastSpell("Fear")
 end
