@@ -282,7 +282,7 @@ function MS:WL_AffliDots()
 
     -- 3) Apply dot in solo
     local spellIsCast = false
-    local spells = { "Siphon Life", "Corruption", "Curse of Agony" }
+    local spells = { "Corruption", "Siphon Life", "Curse of Agony" }
     local otherCurses = {
         "Curse of Recklessness",
         "Curse of Exhaustion",
@@ -527,6 +527,7 @@ function MS:WL_SummonOrBanish()
     local isAlive = UnitExists("target") and not UnitIsDeadOrGhost("target")
     local isNotMe = not UnitIsUnit("player", "target")
     local isPartyMember = UnitInParty("target") or UnitInRaid("target")
+    local isNotFriendly = not UnitIsFriend("player", "target")
     local creatureType = UnitCreatureType("target")
     local isValidCreatureType = creatureType == "Demon" or creatureType == "Elemental"
 
@@ -537,7 +538,13 @@ function MS:WL_SummonOrBanish()
         MS:CastSpell("Ritual of Summoning")
     elseif isValidCreatureType then
         MS:CastSpell("Banish")
-    else
+    elseif isAlive and isNotFriendly then
+        local petShouldStopAttacking = MS.petIsAttacking and UnitIsUnit("target", "pettarget")
+
+        if petShouldStopAttacking then
+            MS:PetFollow()
+        end
+
         MS:CastSpell("Fear")
     end
 end
@@ -623,10 +630,12 @@ function MS:WL_Drain()
     local needShards = shardsAmount < MS_CONFIG.soulshards
 
     if enemyIsPlayer then
-        local targetClass = isPlayer and UnitClass("target")
+        local targetClass = UnitClass("target")
+        local mpClasses = { "Warrior", "Rogue", "Druid" }
+        local isManaClass = not MS:CheckIfTableIncludes(mpClasses, targetClass)
         local enemyMP = MS:MPPercent("target")
 
-        enemyHasMana = targetClass ~= "Warrior" and targetClass ~= "Rogue" and enemyMP > 0
+        enemyHasMana = isManaClass and enemyMP > 0
     end
 
     if needShards and myHP > 60 and enemyHP < 30 then
@@ -641,14 +650,4 @@ function MS:WL_Drain()
 
     local hasCast = MS:CastSpell("Drain Life")
     if hasCast then return end
-end
-
-function MS:WL_Fear()
-    local petShouldStopAttacking = MS.petIsAttacking and UnitIsUnit("target", "pettarget")
-
-    if petShouldStopAttacking then
-        MS:PetFollow()
-    end
-
-    MS:CastSpell("Fear")
 end
