@@ -303,8 +303,14 @@ function MS:CastSpell(name)
     local hasCast = false
 
     if wasFound and not onCooldown then
+        -- reset global
+        MS.castHasFailed = false
+
         CastSpellByName(name)
-        hasCast = true
+        hasCast = not MS.castHasFailed
+
+        -- reset global
+        MS.castHasFailed = false
     end
 
     return hasCast

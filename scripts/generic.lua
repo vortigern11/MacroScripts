@@ -165,9 +165,9 @@ function MS:PetAttack()
     if hasPet then
         local isNotImp = UnitCreatureFamily("pet") ~= "Imp"
         local petHasNoTarget = not UnitExists("pettarget") or UnitIsDeadOrGhost("pettarget")
-        local shouldAttackNewTarget = petHasNoTarget or MS.petIsAttacking
+        -- local shouldAttackNewTarget = petHasNoTarget or MS.petIsAttacking
 
-        if isNotImp and shouldAttackNewTarget then
+        if isNotImp and petHasNoTarget then
             PetAttack()
         end
     end

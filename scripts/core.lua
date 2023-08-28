@@ -8,6 +8,8 @@ MS:RegisterEvent("PLAYER_REGEN_ENABLED")
 MS:RegisterEvent("PLAYER_REGEN_DISABLED")
 MS:RegisterEvent("PET_ATTACK_START")
 MS:RegisterEvent("PET_ATTACK_STOP")
+MS:RegisterEvent("SPELLCAST_FAILED")
+MS:RegisterEvent("SPELLCAST_INTERRUPTED")
 
 MS:SetScript("OnEvent", function()
     if event == "ADDON_LOADED" then
@@ -21,6 +23,8 @@ MS:SetScript("OnEvent", function()
         MS.petIsAttacking = true
     elseif event == "PET_ATTACK_STOP" then
         MS.petIsAttacking = false
+    elseif event == "SPELLCAST_FAILED" or event == "SPELLCAST_INTERRUPTED" then
+        MS.castHasFailed = true
     end
 end)
 

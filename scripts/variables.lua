@@ -14,6 +14,7 @@
 MS.inCombat = false
 MS.petIsAttacking = false
 MS.warlockDotIdx = 1
+MS.castHasFailed = false
 
 -- Equipment dictionary
 MS.equipments = {
