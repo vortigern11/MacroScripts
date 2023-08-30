@@ -66,7 +66,7 @@ function MS:UseHealthConsumable()
     local hp = MS:HPPercent("player")
     local items = MS.hpConsumables[zone]
 
-    if hp > 50 then return end
+    if hp > 60 then return end
 
     local wasUsed = MS:UseBagItemFromList(items)
 
@@ -89,7 +89,7 @@ function MS:UseManaConsumable()
     local items = MS.mpConsumables[zone]
     local wasUsed = false
 
-    if mp > 50 then return end
+    if mp > 60 then return end
 
     if (isRogue and mp < 40) then
         wasUsed = MS:UseBagItem("Thistle Tea")
@@ -150,6 +150,23 @@ function MS:SwapFishing()
     end
 end
 
+function MS:ApplyLure()
+    local mainItemLink = MS:GetEquipmentItemLink("main")
+    local mainItem = MS:ItemLinkToName(mainItemLink)
+    local poles = MS.fishing.poles
+    local isPoleEquipped = MS:CheckIfTableIncludes(poles, mainItem)
+
+    if isPoleEquipped then
+        local lures = MS.fishing.lures
+        local wasUsed = MS:UseBagItemFromList(lures)
+
+        if wasUsed then
+            PickupInventoryItem(MS.equipments["main"].id)
+            ReplaceEnchant()
+        end
+    end
+end
+
 function MS:PetFollow()
     local hasPet = HasPetUI()
 
@@ -163,11 +180,11 @@ function MS:PetAttack()
     local hasPet = HasPetUI()
 
     if hasPet then
-        local isNotImp = UnitCreatureFamily("pet") ~= "Imp"
+        local hasPhaseShift = MS:FindBuff("Phase Shift", "pet")
         local petHasNoTarget = not UnitExists("pettarget") or UnitIsDeadOrGhost("pettarget")
-        -- local shouldAttackNewTarget = petHasNoTarget or MS.petIsAttacking
+        local shouldAttackNewTarget = petHasNoTarget or MS.petIsAttacking
 
-        if isNotImp and petHasNoTarget then
+        if not hasPhaseShift and shouldAttackNewTarget then
             PetAttack()
         end
     end

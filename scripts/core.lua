@@ -18,7 +18,7 @@ MS:SetScript("OnEvent", function()
     elseif event == "PLAYER_REGEN_ENABLED" then
         MS.inCombat = false
     elseif event == "PLAYER_REGEN_DISABLED" then
-        MS.inCombat = false
+        MS.inCombat = true
     elseif event == "PET_ATTACK_START" then
         MS.petIsAttacking = true
     elseif event == "PET_ATTACK_STOP" then
