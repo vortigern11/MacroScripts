@@ -390,10 +390,13 @@ function MS:WL_DestroDamage()
 
     if isNotValidTarget then TargetNearestEnemy() end
 
+    local hasDebuff = false
     local spellIsCast = false
+    local spellName = ""
     local mp = MS:MPPercent("player")
     local enemyHP = MS:HPPercent("target")
     local enemyIsPlayer = UnitIsPlayer("target")
+    local imTarget = UnitIsUnit("player", "targettarget")
 
     -- Pet attack
     MS:PetAttack()
@@ -402,27 +405,39 @@ function MS:WL_DestroDamage()
     local haveShadowTrance = MS:FindBuff("Shadow Trance", "player")
     local isFirstAttack = not MS.inCombat
 
-    if mp > 20 and (haveShadowTrance or isFirstAttack) then
+    if haveShadowTrance or isFirstAttack then
         local hasCast = MS:CastSpell("Shadow Bolt")
         if hasCast then return end
     end
 
     -- Apply DOT
-    if enemyHP > 35 then
-        local spells = { "Immolate", "Corruption" }
-        local lastSpellIdx = 2
+    if enemyHP > 30 then
+        spellName = "Corruption"
+        hasDebuff = MS:FindBuff(spellName, "target")
 
-        MS:TraverseTable(spells, function(_, spellName)
-            -- dot on target, cast by me
-            local wasFound = MS:FindBuff(spellName, "target")
+        if not hasDebuff then
+            spellIsCast = MS:CastSpell(spellName)
+            if spellIsCast then return end
+        end
 
-            if not wasFound then
+        spellName = "Siphon Life"
+        hasDebuff = MS:FindBuff(spellName, "target")
+
+        if not hasDebuff then
+            spellIsCast = MS:CastSpell(spellName)
+            if spellIsCast then return end
+        end
+
+        -- maybe cast Immolate
+        if not imTarget then
+            spellName = "Immolate"
+            hasDebuff = MS:FindBuff(spellName, "target")
+
+            if not hasDebuff then
                 spellIsCast = MS:CastSpell(spellName)
-                if spellIsCast then return "break loop" end
+                if spellIsCast then return end
             end
-        end)
-
-        if spellIsCast then return end
+        end
 
         -- cast curse if enemy is a player or in instance
         local inInstance = IsInInstance()
@@ -449,20 +464,11 @@ function MS:WL_DestroDamage()
 
             if not hasOtherCurse then
                 local enemyClass = UnitClass("target")
-                local enemyIsPriest = enemyClass == "Priest"
-
-                -- cast Amplify Curse if about to cast curse
-                local _, isGCD = MS:FindSpell("Curse of Agony")
-
-                if not isGCD and not enemyIsPriest then
-                    spellIsCast = MS:CastSpell("Amplify Curse")
-                    if spellIsCast then return end
-                end
 
                 -- choose a curse depending on class
                 if enemyClass == "Warlock" or enemyClass == "Mage" then
                     spellIsCast = MS:CastSpell("Curse of Agony")
-                elseif enemyIsPriest then
+                elseif enemyClass == "Priest" then
                     spellIsCast = MS:CastSpell("Curse of Tongues")
                 else
                     spellIsCast = MS:CastSpell("Curse of Weakness")
@@ -474,8 +480,6 @@ function MS:WL_DestroDamage()
     end
 
     -- Cast Shadowbolts if I'm safe
-    local imTarget = UnitIsUnit("player", "targettarget")
-
     if not imTarget and enemyHP > 20 then
         local hasCast = MS:CastSpell("Shadow Bolt")
         if hasCast then return end
@@ -515,9 +519,9 @@ function MS:WL_Exhaust()
 
     -- Cast Exhaust
     local spellName = "Curse of Exhaustion"
-    local wasFound = MS:FindBuff(spellName, "target")
+    local hasDebuff = MS:FindBuff(spellName, "target")
 
-    if not wasFound then
+    if not hasDebuff then
         local hasCastAmplify = MS:CastSpell("Amplify Curse")
         if hasCastAmplify then return end
 
@@ -537,9 +541,9 @@ function MS:WL_SoulFire()
     if enemyHP < 60 then return end
 
     -- Cast curse
-    local wasFound = MS:FindBuff("Curse of the Elements", "target")
+    local hasDebuff = MS:FindBuff("Curse of the Elements", "target")
 
-    if not wasFound then
+    if not hasDebuff then
         local hasCastCurse = MS:CastSpell("Curse of the Elements")
         if hasCastCurse then return end
     end
@@ -554,8 +558,6 @@ function MS:WL_SummonOrFear()
     local isNotMe = not UnitIsUnit("player", "target")
     local isPartyMember = UnitInParty("target") or UnitInRaid("target")
     local isNotFriendly = not UnitIsFriend("player", "target")
-    local creatureType = UnitCreatureType("target")
-    local isValidCreatureType = creatureType == "Demon" or creatureType == "Elemental"
 
     if isAlive and isNotMe and isPartyMember then
         local targetName = UnitName("target")
@@ -564,13 +566,25 @@ function MS:WL_SummonOrFear()
         MS:CastSpell("Ritual of Summoning")
     else
         local hp = MS:HPPercent("player")
+        local imTarget = UnitIsUnit("player", "targettarget")
 
-        if hp < 60 then
+        if hp < 100 and imTarget then
             local hasCast = MS:CastSpell("Death Coil")
             if hasCast then return end
         end
 
         MS:CastSpell("Fear")
+    end
+end
+
+function MS:WL_BanishOrHowl()
+    local creatureType = UnitCreatureType("target")
+    local isValidCreatureType = creatureType == "Demon" or creatureType == "Elemental"
+
+    if isValidCreatureType then
+        MS:CastSpell("Banish")
+    else
+        MS:CastSpell("Howl of Terror")
     end
 end
 
