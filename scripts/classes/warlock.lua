@@ -231,7 +231,7 @@ function MS:WL_Replenish()
         -- Life Tap if more hp than mana
         local hp = MS:HPPercent("player")
 
-        if hp > mp then
+        if hp > 50 and hp > mp then
             local hasCast = MS:CastSpell("Life Tap")
             if hasCast then return end
         end
@@ -256,135 +256,7 @@ function MS:WL_Replenish()
     end
 end
 
-function MS:WL_AffliDamage()
-    -- Check if valid target
-    local isNotValidTarget = not UnitExists("target") or UnitIsDeadOrGhost("target") or UnitIsFriend("player", "target")
-
-    if isNotValidTarget then TargetNearestEnemy() end
-
-    -- Attack with pet
-    MS:PetAttack()
-
-    -- Cast Shadowbolt if I have Shadow Trance
-    local haveShadowTrance = MS:FindBuff("Shadow Trance", "player")
-    local mp = MS:MPPercent("player")
-
-    if haveShadowTrance and mp > 30 then
-        local hasCast = MS:CastSpell("Shadow Bolt")
-        if hasCast then return end
-    end
-
-    -- Apply dot in solo
-    local spellIsCast = false
-    local spells = { "Corruption", "Siphon Life", "Curse of Agony" }
-    local lastSpellIdx = 3
-    local otherCurses = {
-        "Curse of Recklessness",
-        "Curse of Exhaustion",
-        "Curse of Shadow",
-        "Curse of the Elements",
-        "Curse of Tongues",
-        "Curse of Weakness",
-        "Curse of Doom"
-    }
-
-    MS:TraverseTable(spells, function(_, spellName)
-        -- dot on target, cast by me
-        local wasFound = MS:FindBuff(spellName, "target")
-
-        -- go to next spell
-        if wasFound then return end
-
-        local spellIsAgony = spellName == "Curse of Agony"
-
-        if spellIsAgony then
-            -- Don't cast Agony if target has another curse
-            local hasOtherCurse = false
-
-            MS:TraverseTable(otherCurses, function(_, curseName)
-                hasOtherCurse = MS:FindBuff(curseName, "target")
-                if hasOtherCurse then return "break loop" end
-            end)
-
-            if hasOtherCurse then return end
-
-            -- cast Amplify Curse if about to cast Curse of Agony
-            local _, isGCD = MS:FindSpell("Curse of Agony")
-
-            if not isGCD then
-                local hasCastAmplify = MS:CastSpell("Amplify Curse")
-
-                if hasCastAmplify then
-                    spellIsCast = true
-                    return "break loop"
-                end
-            end
-        end
-
-        local hasCast = MS:CastSpell(spellName)
-
-        if hasCast then
-            spellIsCast = true
-            return "break loop"
-        end
-    end)
-
-    if spellIsCast then return end
-
-    -- In case there are other warlocks in the group
-    -- since in vanilla you can't get info about who cast the DOT.....
-    local inParty = UnitExists("party1")
-
-    if inParty then
-        -- assume there is another warlock if in raid
-        local hasAnotherWarlock = UnitExists("raid1")
-
-        for i = 1, 4 do
-            local currUnit = "party" .. i
-            hasAnotherWarlock = UnitExists(currUnit) and UnitClass(currUnit) == "Warlock"
-            if hasAnotherWarlock then break end
-        end
-
-        if hasAnotherWarlock then
-            local idx = MS.warlockDotIdx
-            local spellIsAgony = spells[idx] == "Curse of Agony"
-
-            if spellIsAgony then
-                -- Don't cast Agony if target has another curse
-                local hasOtherCurse = false
-
-                MS:TraverseTable(otherCurses, function(_, curseName)
-                    hasOtherCurse = MS:FindBuff(curseName, "target")
-                    if hasOtherCurse then return "break loop" end
-                end)
-
-                if hasOtherCurse then
-                    -- CoA is the last index, so start from the beginning
-                    idx = 1
-                else
-                    -- cast Amplify Curse if about to cast Curse of Agony
-                    local _, isGCD = MS:FindSpell("Curse of Agony")
-
-                    if not isGCD then
-                        local hasCastAmplify = MS:CastSpell("Amplify Curse")
-                        if hasCastAmplify then return end
-                    end
-                end
-            end
-
-            spellIsCast = MS:CastSpell(spells[idx])
-
-            if spellIsCast then
-                idx = idx + 1
-                if idx > lastSpellIdx then idx = 1 end
-                MS.warlockDotIdx = idx
-                return
-            end
-        end
-    end
-end
-
-function MS:WL_DestroDamage()
+function MS:WL_Damage()
     -- Check if valid target
     local isNotValidTarget = not UnitExists("target") or UnitIsDeadOrGhost("target") or UnitIsFriend("player", "target")
 
@@ -397,6 +269,9 @@ function MS:WL_DestroDamage()
     local enemyHP = MS:HPPercent("target")
     local enemyIsPlayer = UnitIsPlayer("target")
     local imTarget = UnitIsUnit("player", "targettarget")
+    local inInstance = IsInInstance()
+    local isFireElem = UnitCreatureFamily("target") == "Fire Elemental"
+    local isMechanical = UnitCreatureType("target") == "Mechanical"
 
     -- Pet attack
     MS:PetAttack()
@@ -412,6 +287,7 @@ function MS:WL_DestroDamage()
 
     -- Apply DOT
     if enemyHP > 30 then
+        -- cast corruption
         spellName = "Corruption"
         hasDebuff = MS:FindBuff(spellName, "target")
 
@@ -420,16 +296,18 @@ function MS:WL_DestroDamage()
             if spellIsCast then return end
         end
 
-        spellName = "Siphon Life"
-        hasDebuff = MS:FindBuff(spellName, "target")
+        if not isMechanical then
+            spellName = "Siphon Life"
+            hasDebuff = MS:FindBuff(spellName, "target")
 
-        if not hasDebuff then
-            spellIsCast = MS:CastSpell(spellName)
-            if spellIsCast then return end
+            if not hasDebuff then
+                spellIsCast = MS:CastSpell(spellName)
+                if spellIsCast then return end
+            end
         end
 
         -- maybe cast Immolate
-        if not imTarget then
+        if not isFireElem then
             spellName = "Immolate"
             hasDebuff = MS:FindBuff(spellName, "target")
 
@@ -439,10 +317,8 @@ function MS:WL_DestroDamage()
             end
         end
 
-        -- cast curse if enemy is a player or in instance
-        local inInstance = IsInInstance()
-
-        if enemyIsPlayer or inInstance then
+        -- cast curse
+        if enemyIsPlayer or inInstance or not imTarget then
             local curses = {
                 "Curse of Agony",
                 "Curse of Weakness",
@@ -464,12 +340,15 @@ function MS:WL_DestroDamage()
 
             if not hasOtherCurse then
                 local enemyClass = UnitClass("target")
+                local isEnemyCaster = enemyClass == "Warlock" or enemyClass == "Mage" or enemyClass == "Priest"
+
+                -- try to cast Amplify Curse
+                local hasCastAmplify = MS:CastSpell("Amplify Curse")
+                if hasCastAmplify then return end
 
                 -- choose a curse depending on class
-                if enemyClass == "Warlock" or enemyClass == "Mage" then
+                if not imTarget or isEnemyCaster then
                     spellIsCast = MS:CastSpell("Curse of Agony")
-                elseif enemyClass == "Priest" then
-                    spellIsCast = MS:CastSpell("Curse of Tongues")
                 else
                     spellIsCast = MS:CastSpell("Curse of Weakness")
                 end
@@ -507,8 +386,10 @@ function MS:WL_DestroDamage()
     end
 
     -- As a last resort, when I already have aggro -> Searing Pain
-    spellIsCast = MS:CastSpell("Searing Pain")
-    if spellIsCast then return end
+    if not isFireElem then
+        spellIsCast = MS:CastSpell("Searing Pain")
+        if spellIsCast then return end
+    end
 end
 
 function MS:WL_Exhaust()
