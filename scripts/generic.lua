@@ -180,7 +180,7 @@ function MS:PetAttack()
     local hasPet = HasPetUI()
 
     if hasPet then
-        local isImp = UnitCreatureFamily("pet") ~= "Imp"
+        local isImp = UnitCreatureFamily("pet") == "Imp"
         local inInstance = IsInInstance()
         local impInInstance = isImp and inInstance
         local petHasNoTarget = not UnitExists("pettarget") or UnitIsDeadOrGhost("pettarget")

@@ -270,19 +270,29 @@ function MS:FindSpell(name)
     local wasFound, onCooldown = false, false
 
     local function Partial(booktype)
+        local spellAndRank = ""
         local spellId = 1
-        local spell = GetSpellName(spellId, booktype)
         local wasFound, onCooldown = false, false
 
+        local spell, rank = GetSpellName(spellId, booktype)
+
+        if type(rank) == "string" then
+            spellAndRank = spell .. "(" .. rank .. ")"
+        end
+
         while(spell) do
-            if spell == name then
+            if name == spell or name == spellAndRank then
                 wasFound = true
                 onCooldown = GetSpellCooldown(spellId, booktype) ~= 0
                 break
             end
 
             spellId = spellId + 1
-            spell = GetSpellName(spellId, booktype)
+            spell, rank = GetSpellName(spellId, booktype)
+
+            if type(rank) == "string" then
+                spellAndRank = spell .. "(" .. rank .. ")"
+            end
         end
 
         return wasFound, onCooldown

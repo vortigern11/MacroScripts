@@ -193,6 +193,7 @@ function MS:WL_Spellstone()
 end
 
 function MS:WL_Replenish()
+    local hp = MS:HPPercent("player")
     local mp = MS:MPPercent("player")
 
     -- if enough mana -> cast buff
@@ -229,7 +230,6 @@ function MS:WL_Replenish()
     -- if low on mana -> regen
     if mp < 90 then
         -- Life Tap if more hp than mana
-        local hp = MS:HPPercent("player")
 
         if hp > 50 and hp > mp then
             local hasCast = MS:CastSpell("Life Tap")
@@ -272,30 +272,37 @@ function MS:WL_Damage()
     local inInstance = IsInInstance()
     local isFireElem = UnitCreatureFamily("target") == "Fire Elemental"
     local isMechanical = UnitCreatureType("target") == "Mechanical"
+    local lvlDiff = UnitLevel("player") - UnitLevel("target")
+    local mobIsGreen = lvlDiff <= GetQuestGreenRange()
+    local yieldsHonor = enemyIsPlayer or mobIsGreen
+
+
+    local curses = {
+        "Curse of Agony",
+        "Curse of Weakness",
+        "Curse of Tongues",
+        "Curse of Recklessness",
+        "Curse of Exhaustion",
+        "Curse of Shadow",
+        "Curse of the Elements",
+        "Curse of Doom"
+    }
 
     -- Pet attack
     MS:PetAttack()
 
     -- Cast Shadowbolt if Shadow Trance
     local haveShadowTrance = MS:FindBuff("Shadow Trance", "player")
-    local isFirstAttack = not MS.inCombat
+    -- local isFirstAttack = not MS.inCombat
 
-    if haveShadowTrance or isFirstAttack then
+    if haveShadowTrance then
         local hasCast = MS:CastSpell("Shadow Bolt")
         if hasCast then return end
     end
 
     -- Apply DOT
-    if enemyHP > 30 then
-        -- cast corruption
-        spellName = "Corruption"
-        hasDebuff = MS:FindBuff(spellName, "target")
-
-        if not hasDebuff then
-            spellIsCast = MS:CastSpell(spellName)
-            if spellIsCast then return end
-        end
-
+    if enemyIsPlayer or enemyHP > 20 then
+        -- cast Siphon Life
         if not isMechanical then
             spellName = "Siphon Life"
             hasDebuff = MS:FindBuff(spellName, "target")
@@ -306,6 +313,43 @@ function MS:WL_Damage()
             end
         end
 
+        -- Don't cast curse if target has another curse
+        local hasOtherCurse = false
+
+        MS:TraverseTable(curses, function(_, curseName)
+            hasOtherCurse = MS:FindBuff(curseName, "target")
+            if hasOtherCurse then return "break loop" end
+        end)
+
+        -- Cast curse
+        if not hasOtherCurse then
+            -- try to cast Amplify Curse
+            if yieldsHonor then
+                local hasCastAmplify = MS:CastSpell("Amplify Curse")
+                if hasCastAmplify then return end
+            end
+
+            spellIsCast = MS:CastSpell("Curse of Agony")
+            if spellIsCast then return end
+
+            -- local enemyClass = UnitClass("target")
+            -- local isEnemyCaster = enemyClass == "Warlock" or enemyClass == "Mage" or enemyClass == "Priest"
+
+            -- choose a curse depending on class
+            -- if enemyIsPlayer and not isEnemyCaster and imTarget then
+            --     spellIsCast = MS:CastSpell("Curse of Weakness")
+            -- end
+        end
+
+        -- cast Corruption
+        spellName = "Corruption"
+        hasDebuff = MS:FindBuff(spellName, "target")
+
+        if not hasDebuff then
+            spellIsCast = MS:CastSpell(spellName)
+            if spellIsCast then return end
+        end
+
         -- maybe cast Immolate
         if not isFireElem then
             spellName = "Immolate"
@@ -313,46 +357,6 @@ function MS:WL_Damage()
 
             if not hasDebuff then
                 spellIsCast = MS:CastSpell(spellName)
-                if spellIsCast then return end
-            end
-        end
-
-        -- cast curse
-        if enemyIsPlayer or inInstance or not imTarget then
-            local curses = {
-                "Curse of Agony",
-                "Curse of Weakness",
-                "Curse of Tongues",
-                "Curse of Recklessness",
-                "Curse of Exhaustion",
-                "Curse of Shadow",
-                "Curse of the Elements",
-                "Curse of Doom"
-            }
-
-            -- Don't cast curse if target has another curse
-            local hasOtherCurse = false
-
-            MS:TraverseTable(curses, function(_, curseName)
-                hasOtherCurse = MS:FindBuff(curseName, "target")
-                if hasOtherCurse then return "break loop" end
-            end)
-
-            if not hasOtherCurse then
-                local enemyClass = UnitClass("target")
-                local isEnemyCaster = enemyClass == "Warlock" or enemyClass == "Mage" or enemyClass == "Priest"
-
-                -- try to cast Amplify Curse
-                local hasCastAmplify = MS:CastSpell("Amplify Curse")
-                if hasCastAmplify then return end
-
-                -- choose a curse depending on class
-                if not imTarget or isEnemyCaster then
-                    spellIsCast = MS:CastSpell("Curse of Agony")
-                else
-                    spellIsCast = MS:CastSpell("Curse of Weakness")
-                end
-
                 if spellIsCast then return end
             end
         end
@@ -375,10 +379,6 @@ function MS:WL_Damage()
         end
 
         -- Try casting Shadowburn
-        local lvlDiff = UnitLevel("player") - UnitLevel("target")
-        local mobIsGreen = lvlDiff <= GetQuestGreenRange()
-        local yieldsHonor = enemyIsPlayer or mobIsGreen
-
         if yieldsHonor then
             spellIsCast = MS:CastSpell("Shadowburn")
             if spellIsCast then return end
@@ -449,7 +449,7 @@ function MS:WL_SummonOrFear()
         local hp = MS:HPPercent("player")
         local imTarget = UnitIsUnit("player", "targettarget")
 
-        if hp < 100 and imTarget then
+        if hp < 50 and imTarget then
             local hasCast = MS:CastSpell("Death Coil")
             if hasCast then return end
         end
@@ -473,16 +473,17 @@ function MS:WL_PetSpell()
     local hasPet = HasPetUI()
 
     if not hasPet then
-        local hasCastFel = MS:CastSpell("Fel Domination")
         local hasFelDom = MS:FindBuff("Fel Domination", "player")
 
-        if hasCastFel or hasFelDom then
-            local hasCastVoid = MS:CastSpell("Summon Voidwalker")
-
-            if hasCastVoid then return end
+        if not hasFelDom then
+            local hasCastFel = MS:CastSpell("Fel Domination")
+            if hasCastFel then return end
         end
 
-        -- don't try to full cast pet
+        local hasCastVoid = MS:CastSpell("Summon Voidwalker")
+        if hasCastVoid then return end
+
+        -- if there is no pet, and failed to cast
         return
     end
 
@@ -594,7 +595,7 @@ function MS:WL_Drain()
     end
 
     if yieldsHonor and needShards and myHP > 60 and enemyHP < 30 then
-        local hasCast MS:CastSpell("Drain Soul")
+        local hasCast = MS:CastSpell("Drain Soul(Rank 1)")
         if hasCast then return end
     end
 
