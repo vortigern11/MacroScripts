@@ -362,6 +362,38 @@ function MS:WL_Damage()
         end
     end
 
+    -- In case there are other warlocks in the group
+    local inParty = UnitExists("party1")
+
+    if inParty then
+        -- assume there is another warlock if in raid
+        local hasAnotherWarlock = UnitExists("raid1")
+
+        for i = 1, 4 do
+            local currUnit = "party" .. i
+            hasAnotherWarlock = UnitExists(currUnit) and UnitClass(currUnit) == "Warlock"
+            if hasAnotherWarlock then break end
+        end
+
+        if hasAnotherWarlock then
+            local spells = {
+                "Corruption",
+                "Immolate",
+                "Siphon Life",
+                "Curse of Weakness"
+            }
+            local lastIdx = table.getn(spells)
+
+            while (idx <= lastIdx) do
+                local idx = MS.warlockDotIdx
+
+                spellIsCast = MS:CastSpell(spells[idx])
+                MS.warlockDotIdx = idx + 1
+                if spellIsCast then return end
+            end
+        end
+    end
+
     -- Cast Shadowbolts if I'm safe
     if not imTarget and enemyHP > 20 then
         local hasCast = MS:CastSpell("Shadow Bolt")
@@ -471,8 +503,9 @@ end
 
 function MS:WL_PetSpell()
     local hasPet = HasPetUI()
+    local petHP = MS:HPPercent("pet")
 
-    if not hasPet then
+    if not hasPet or petHP == 0 then
         local hasFelDom = MS:FindBuff("Fel Domination", "player")
 
         if not hasFelDom then
@@ -552,15 +585,6 @@ function MS:WL_PetSpell()
 
         if hasCastDevour then return end
     end
-end
-
-function MS:WL_Shadowbolt()
-    local isNotValidTarget = not UnitExists("target") or UnitIsDeadOrGhost("target") or UnitIsFriend("player", "target")
-
-    if isNotValidTarget then TargetNearestEnemy() end
-
-    MS:PetAttack()
-    MS:CastSpell("Shadow Bolt")
 end
 
 function MS:WL_Drain()
