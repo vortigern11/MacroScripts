@@ -246,7 +246,7 @@ function MS:StripItem(part)
             if bag == 0 then
                 PutItemInBackpack()
             else
-                PutItemInBag(bag + 20)
+                PutItemInBag(bag + 19)
             end
         end
 

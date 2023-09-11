@@ -197,7 +197,7 @@ function MS:WL_Replenish()
     local mp = MS:MPPercent("player")
 
     -- if enough mana -> cast buff
-    if mp > 30 and not MS.inCombat then
+    if mp > 30 then
         -- cast Soul Link if possible
         local hasPet = HasPetUI()
         local hasSoulLink = MS:FindBuff("Soul Link", "player")
@@ -210,6 +210,7 @@ function MS:WL_Replenish()
 
         -- cast Demon Buff
         local buffs = { "Demon Armor", "Demon Skin" }
+        local isSafeToCast = mp > 60 or not MS.inCombat
         local wasFound = false
 
         MS:TraverseTable(buffs, function(_, buffName)
@@ -217,7 +218,7 @@ function MS:WL_Replenish()
             if wasFound then return "break loop" end
         end)
 
-        if not wasFound then
+        if not wasFound and isSafeToCast then
             local hasCast = MS:CastSpell(buffs[0])
 
             if not hasCast then
