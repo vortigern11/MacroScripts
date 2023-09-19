@@ -317,6 +317,7 @@ function MS:CastSpell(name)
         MS.castHasFailed = false
 
         CastSpellByName(name)
+        MS.prevSpellCast = name
         hasCast = not MS.castHasFailed
 
         -- reset global

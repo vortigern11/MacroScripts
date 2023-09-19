@@ -269,6 +269,9 @@ function MS:WL_Damage()
     local mp = MS:MPPercent("player")
     local enemyHP = MS:HPPercent("target")
     local enemyIsPlayer = UnitIsPlayer("target")
+    local enemyClass = UnitClass("target")
+    local isEnemyCaster = enemyIsPlayer and (enemyClass == "Warlock" or enemyClass == "Mage" or enemyClass == "Priest")
+    local isClose = CheckInteractDistance("target", 3)
     local imTarget = UnitIsUnit("player", "targettarget")
     local inInstance = IsInInstance()
     local isFireElem = UnitCreatureFamily("target") == "Fire Elemental"
@@ -276,7 +279,8 @@ function MS:WL_Damage()
     local lvlDiff = UnitLevel("player") - UnitLevel("target")
     local mobIsGreen = lvlDiff <= GetQuestGreenRange()
     local yieldsHonor = enemyIsPlayer or mobIsGreen
-
+    local hasBubble = MS:FindBuff("Sacrifice", "player")
+    local imSafe = not imTarget or not isClose or hasBubble
 
     local curses = {
         "Curse of Agony",
@@ -301,108 +305,95 @@ function MS:WL_Damage()
         if hasCast then return end
     end
 
-    -- Apply DOT
-    if enemyIsPlayer or enemyHP > 20 then
-        -- cast Siphon Life
-        if not isMechanical then
-            spellName = "Siphon Life"
-            hasDebuff = MS:FindBuff(spellName, "target")
+    -- assume there is another warlock if in raid
+    local hasAnotherWarlock = UnitExists("raid1")
 
-            if not hasDebuff then
-                spellIsCast = MS:CastSpell(spellName)
-                if spellIsCast then return end
-            end
-        end
-
-        -- Don't cast curse if target has another curse
-        local hasOtherCurse = false
-
-        MS:TraverseTable(curses, function(_, curseName)
-            hasOtherCurse = MS:FindBuff(curseName, "target")
-            if hasOtherCurse then return "break loop" end
-        end)
-
-        -- Cast curse
-        if not hasOtherCurse then
-            -- try to cast Amplify Curse
-            if yieldsHonor then
-                local hasCastAmplify = MS:CastSpell("Amplify Curse")
-                if hasCastAmplify then return end
-            end
-
-            spellIsCast = MS:CastSpell("Curse of Agony")
-            if spellIsCast then return end
-
-            -- local enemyClass = UnitClass("target")
-            -- local isEnemyCaster = enemyClass == "Warlock" or enemyClass == "Mage" or enemyClass == "Priest"
-
-            -- choose a curse depending on class
-            -- if enemyIsPlayer and not isEnemyCaster and imTarget then
-            --     spellIsCast = MS:CastSpell("Curse of Weakness")
-            -- end
-        end
-
-        -- cast Corruption
-        spellName = "Corruption"
-        hasDebuff = MS:FindBuff(spellName, "target")
-
-        if not hasDebuff then
-            spellIsCast = MS:CastSpell(spellName)
-            if spellIsCast then return end
-        end
-
-        -- maybe cast Immolate
-        if not isFireElem then
-            spellName = "Immolate"
-            hasDebuff = MS:FindBuff(spellName, "target")
-
-            if not hasDebuff then
-                spellIsCast = MS:CastSpell(spellName)
-                if spellIsCast then return end
-            end
-        end
+    for i = 1, 4 do
+        local currUnit = "party" .. i
+        hasAnotherWarlock = UnitExists(currUnit) and UnitClass(currUnit) == "Warlock"
+        if hasAnotherWarlock then break end
     end
 
-    -- In case there are other warlocks in the group
-    local inParty = UnitExists("party1")
-
-    if inParty then
-        -- assume there is another warlock if in raid
-        local hasAnotherWarlock = UnitExists("raid1")
-
-        for i = 1, 4 do
-            local currUnit = "party" .. i
-            hasAnotherWarlock = UnitExists(currUnit) and UnitClass(currUnit) == "Warlock"
-            if hasAnotherWarlock then break end
-        end
-
+    -- Apply DOT
+    if enemyIsPlayer or enemyHP > 30 then
+        -- if in party/raid with other warlocks
         if hasAnotherWarlock then
             local spells = {
                 "Corruption",
                 "Immolate",
-                "Siphon Life",
-                "Curse of Weakness"
+                "Curse of Weakness",
+                "Siphon Life"
             }
             local lastIdx = table.getn(spells)
+            local idx = MS.warlockDotIdx
 
             while (idx <= lastIdx) do
-                local idx = MS.warlockDotIdx
-
                 spellIsCast = MS:CastSpell(spells[idx])
                 MS.warlockDotIdx = idx + 1
+                idx = MS.warlockDotIdx
+                if spellIsCast then return end
+            end
+        else
+            -- cast Siphon Life
+            if yieldsHonor and not isMechanical then
+                spellName = "Siphon Life"
+                hasDebuff = MS:FindBuff(spellName, "target")
+
+                if not hasDebuff then
+                    spellIsCast = MS:CastSpell(spellName)
+                    if spellIsCast then return end
+                end
+            end
+
+            -- Don't cast curse if target has another curse
+            local hasOtherCurse = false
+
+            MS:TraverseTable(curses, function(_, curseName)
+                hasOtherCurse = MS:FindBuff(curseName, "target")
+                if hasOtherCurse then return "break loop" end
+            end)
+
+            -- Cast curse
+            if yieldsHonor and not hasOtherCurse then
+                if isEnemyCaster or not inInstance then
+                    spellIsCast = MS:CastSpell("Curse of Agony")
+                    if spellIsCast then return end
+                else
+                    spellIsCast = MS:CastSpell("Curse of Weakness")
+                    if spellIsCast then return end
+                end
+            end
+
+            -- cast Immolate
+            if not isFireElem then
+                spellName = "Immolate"
+                hasDebuff = MS:FindBuff(spellName, "target")
+
+                if not hasDebuff and MS.prevSpellCast ~= spellName then
+                    spellIsCast = MS:CastSpell(spellName)
+                    if spellIsCast then return end
+                end
+            end
+
+            -- cast Corruption
+            spellName = "Corruption"
+            hasDebuff = MS:FindBuff(spellName, "target")
+
+            if not hasDebuff and MS.prevSpellCast ~= spellName then
+                spellIsCast = MS:CastSpell(spellName)
                 if spellIsCast then return end
             end
         end
     end
 
     -- Cast Shadowbolts if I'm safe
-    if not imTarget and enemyHP > 20 then
+    if enemyHP > 20 and imSafe then
         local hasCast = MS:CastSpell("Shadow Bolt")
         if hasCast then return end
     end
 
     -- Burst if enemy is low hp
-    if enemyHP < 35 then
+    if enemyIsPlayer or enemyHP < 30 then
         -- Try casting Conflagrate
         local hasImmolate = MS:FindBuff("Immolate", "target")
 
@@ -512,10 +503,10 @@ function MS:WL_PetSpell()
         if not hasFelDom then
             local hasCastFel = MS:CastSpell("Fel Domination")
             if hasCastFel then return end
+        else
+            local hasCastVoid = MS:CastSpell("Summon Voidwalker")
+            if hasCastVoid then return end
         end
-
-        local hasCastVoid = MS:CastSpell("Summon Voidwalker")
-        if hasCastVoid then return end
 
         -- if there is no pet, and failed to cast
         return
@@ -608,8 +599,6 @@ function MS:WL_Drain()
         shardsAmount = shardsAmount + 1
     end)
 
-    local needShards = shardsAmount < MS_CONFIG.soulshards
-
     if enemyIsPlayer then
         local targetClass = UnitClass("target")
         local mpClasses = { "Warrior", "Rogue", "Druid" }
@@ -619,7 +608,11 @@ function MS:WL_Drain()
         enemyHasMana = isManaClass and enemyMP > 0
     end
 
-    if yieldsHonor and needShards and myHP > 60 and enemyHP < 30 then
+    local _, _, _, _, drainSoulTalentRank = GetTalentInfo(1, 4)
+    local needShards = shardsAmount < MS_CONFIG.soulshards
+    local shouldDrainSoul = drainSoulTalentRank > 0 or needShards
+
+    if shouldDrainSoul and yieldsHonor and myHP > 60 and enemyHP < 30 then
         local hasCast = MS:CastSpell("Drain Soul(Rank 1)")
         if hasCast then return end
     end

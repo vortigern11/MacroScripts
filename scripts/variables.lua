@@ -12,9 +12,11 @@
 -- end
 
 MS.inCombat = false
+MS.isMeleeAttacking = false
 MS.petIsAttacking = false
 MS.warlockDotIdx = 1
 MS.castHasFailed = false
+MS.prevSpellCast = ""
 
 -- Equipment dictionary
 MS.equipments = {

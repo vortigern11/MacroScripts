@@ -181,12 +181,12 @@ function MS:PetAttack()
 
     if hasPet then
         local isImp = UnitCreatureFamily("pet") == "Imp"
-        local inInstance = IsInInstance()
-        local impInInstance = isImp and inInstance
+        local hasPhaseShift = MS:FindBuff("Phase Shift", "pet")
+        local impInPhase = isImp and hasPhaseShift
         local petHasNoTarget = not UnitExists("pettarget") or UnitIsDeadOrGhost("pettarget")
         local shouldAttackNewTarget = petHasNoTarget or MS.petIsAttacking
 
-        if not impInInstance and shouldAttackNewTarget then
+        if not impInPhase and shouldAttackNewTarget then
             PetAttack()
         end
     end

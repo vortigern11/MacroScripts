@@ -10,6 +10,9 @@ MS:RegisterEvent("PET_ATTACK_START")
 MS:RegisterEvent("PET_ATTACK_STOP")
 MS:RegisterEvent("SPELLCAST_FAILED")
 MS:RegisterEvent("SPELLCAST_INTERRUPTED")
+MS:RegisterEvent("PLAYER_ENTER_COMBAT")
+MS:RegisterEvent("PLAYER_LEAVE_COMBAT")
+MS:RegisterEvent("PLAYER_TARGET_CHANGED")
 
 MS:SetScript("OnEvent", function()
     if event == "ADDON_LOADED" then
@@ -17,6 +20,7 @@ MS:SetScript("OnEvent", function()
         if not MS_GLOBAL_CONFIG then MS_GLOBAL_CONFIG = {} end
     elseif event == "PLAYER_REGEN_ENABLED" then
         MS.inCombat = false
+        MS.prevSpellCast = ""
     elseif event == "PLAYER_REGEN_DISABLED" then
         MS.inCombat = true
     elseif event == "PET_ATTACK_START" then
@@ -25,6 +29,12 @@ MS:SetScript("OnEvent", function()
         MS.petIsAttacking = false
     elseif event == "SPELLCAST_FAILED" or event == "SPELLCAST_INTERRUPTED" then
         MS.castHasFailed = true
+    elseif event == "PLAYER_ENTER_COMBAT" then
+        MS.isMeleeAttacking = true
+    elseif event == "PLAYER_LEAVE_COMBAT" then
+        MS.isMeleeAttacking = false
+    elseif event == "PLAYER_TARGET_CHANGED" then
+        MS.prevSpellCast = ""
     end
 end)
 
@@ -32,9 +42,13 @@ end)
 local orig_UseAction = UseAction
 
 UseAction = function(slot, clicked, onself)
+    -- Don't disable Shoot and Auto-shoot
     local isAutoRepeat = IsAutoRepeatAction(slot)
-
     if isAutoRepeat then return end
+
+    -- Don't disable Attack
+    local isAttackAction = IsAttackAction(slot)
+    if isAttackAction and MS.isMeleeAttacking then return end
 
     return orig_UseAction(slot, clicked, onself)
 end
