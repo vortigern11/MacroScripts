@@ -228,18 +228,8 @@ function MS:R_Damage()
     end
 
     -- cast Kick
-    local targetIsCasting = ShaguTargetCastbar and ShaguTargetCastbar:IsVisible()
-
-    if targetIsCasting then
-        local _, max = ShaguTargetCastbar:GetMinMaxValues()
-        local cur = ShaguTargetCastbar:GetValue()
-        local percent = cur / max
-
-        if max <= 1 or percent > 60 then
-            hasCast = MS:CastSpell("Kick")
-            if hasCast then return end
-        end
-    end
+    local hasCast = MS:Silence("Kick")
+    if hasCast then return end
 
     -- cast Riposte
     local hasRiposte = MS:FindBuff("Riposte", "target")

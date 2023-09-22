@@ -403,3 +403,20 @@ function MS:GetTalentRank(tab, idx)
     local _, _, _, _, talentRank = GetTalentInfo(tab, idx)
     return talentRank
 end
+
+function MS:Silence(spell)
+    local hasCast = false
+    local targetIsCasting = ShaguTargetCastbar and ShaguTargetCastbar:IsVisible()
+
+    if targetIsCasting then
+        local _, max = ShaguTargetCastbar:GetMinMaxValues()
+        local cur = ShaguTargetCastbar:GetValue()
+        local percent = cur / max
+
+        if max <= 1 or percent > 60 then
+            hasCast = MS:CastSpell("spell")
+        end
+    end
+
+    return hasCast
+end

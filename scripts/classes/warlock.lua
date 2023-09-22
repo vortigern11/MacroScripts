@@ -561,12 +561,9 @@ function MS:WL_PetSpell()
         local isAlive = UnitExists("target") and not UnitIsDeadOrGhost("target")
         local isEnemy = isAlive and UnitIsPlayer("target") and not UnitIsFriend("player", "target")
 
-        -- depends on ShaguTweaks
-        local targetIsCasting = ShaguTargetCastbar:IsVisible()
-
         -- cast Spell Lock
-        if isEnemy and targetIsCasting then
-            local hasCast = MS:CastSpell("Spell Lock")
+        if isEnemy then
+            local hasCast = MS:Silence("Spell Lock")
             if hasCast then return end
         end
 
