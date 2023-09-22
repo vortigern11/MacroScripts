@@ -33,31 +33,8 @@ function MS:Say(msg)
     SendChatMessage(msg, "SAY")
 end
 
--- Parses the `unit` to a valid one
-function MS:ParseUnit(unit)
-    if not unit then
-        unit = "player"
-    elseif unit == "mouseover" then
-        local frame = GetMouseFocus()
-        local unit = nil
-
-        if (frame.label and frame.id) then
-            unit = frame.label .. frame.id
-        end
-    end
-
-    local doesntExist = not UnitExists(unit)
-
-    if doesntExist then
-        unit = "player"
-    end
-
-    return unit
-end
-
 -- Health percentage of unit
 function MS:HPPercent(unit)
-    unit = MS:ParseUnit(unit)
     local currentHP = UnitHealth(unit)
     local maxHP = UnitHealthMax(unit)
 
@@ -66,7 +43,6 @@ end
 
 -- Mana/rage/energy percentage of unit
 function MS:MPPercent(unit)
-    unit = MS:ParseUnit(unit)
     local currentMP = UnitMana(unit)
     local maxMP = UnitManaMax(unit)
 
@@ -256,10 +232,17 @@ function MS:StripItem(part)
     return wasStripped
 end
 
+function MS:GetItemType(itemLink)
+    local _, _, istring  = string.find(itemLink, "|H(.+)|h")
+    local _, _, _, _, itemType, itemSubType = GetItemInfo(istring)
+
+    return itemType, itemSubType
+end
+
 -- Checks if the item is two-handed weapon
 -- arg is `itemLink` so the function can work with both bag and equipment items
 function MS:CheckIfTwoHanded(itemLink)
-    local _, _, _, _, _, _, itemSubType = GetItemInfo(itemLink)
+    local _, itemSubType = MS:GetItemType(itemLink)
     local isTwoHanded = MS:CheckIfTableIncludes(MS.twoHandedTypes, itemSubType)
 
     return isTwoHanded
@@ -361,14 +344,12 @@ local function FindBuffPartial(wantedBuff, unit, auraType)
 
     if type(stacks) ~= "number" then stacks = 0 end
 
-    return wasFound, stacks
+    return wasFound, stacks, idx
 end
 
 -- Checks if the aura/buff/debuff is applied on the unit
 -- returns `wasFound, stacks`
 function MS:FindBuff(wantedBuff, unit)
-    unit = MS:ParseUnit(unit)
-
     local wasFound = false
     local stacks = 0
 
@@ -380,4 +361,45 @@ function MS:FindBuff(wantedBuff, unit)
     end
 
     return wasFound, stacks
+end
+
+-- Cancels a buff on the player
+function MS:CancelBuff(wantedBuff)
+    local wasFound, _, buffIdx = FindBuffPartial(wantedBuff, "player", "buff")
+    if wasFound then CancelPlayerBuff(buffIdx) end
+end
+
+-- If invalid target to attack, target nearest enemy
+function MS:TargetEnemy()
+    -- skip check for death, in order to not retarget just after killing an enemy
+    local isNotValidTarget = not UnitExists("target") or UnitIsFriend("player", "target")
+    if isNotValidTarget then TargetNearestEnemy() end
+
+    local hasTarget = UnitExists("target") and not UnitIsFriend("player", "target") and not UnitIsDeadOrGhost("target")
+    return hasTarget
+end
+
+-- returns isEnemyPlayerCaster
+function MS:IsEnemyCaster()
+    local enemyIsPlayer = UnitIsPlayer("target")
+    local enemyClass = UnitClass("target")
+    local isEnemyCaster = enemyIsPlayer and (enemyClass == "Warlock" or enemyClass == "Mage" or enemyClass == "Priest")
+
+    return isEnemyCaster
+end
+
+-- Whether exp or honor
+function MS:YieldsHonorOrExp()
+    local enemyIsPlayer = UnitIsPlayer("target")
+    local lvlDiff = UnitLevel("player") - UnitLevel("target")
+    local mobIsGreen = lvlDiff <= GetQuestGreenRange()
+    local yieldsHonorOrExp = enemyIsPlayer or mobIsGreen
+
+    return yieldsHonorOrExp
+end
+
+-- Get the rank of the talent at tab and idx
+function MS:GetTalentRank(tab, idx)
+    local _, _, _, _, talentRank = GetTalentInfo(tab, idx)
+    return talentRank
 end

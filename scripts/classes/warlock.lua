@@ -48,6 +48,8 @@ end
 
 local wl = CreateFrame("Frame")
 
+wl.warlockDotIdx = 1
+
 wl:RegisterEvent("ADDON_LOADED")
 wl:RegisterEvent("PLAYER_XP_UPDATE")
 wl:RegisterEvent("PLAYER_PVP_KILLS_CHANGED")
@@ -56,7 +58,10 @@ MS:RegisterEvent("PLAYER_TARGET_CHANGED")
 wl:SetScript("OnEvent", function()
     local playerIsNotWarlock = UnitClass("player") ~= "Warlock"
 
-    if playerIsNotWarlock then return end
+    if playerIsNotWarlock then
+        wl:UnregisterAllEvents()
+        return
+    end
 
     if event == "ADDON_LOADED" then
         SetupSoulshardRemoval()
@@ -65,7 +70,7 @@ wl:SetScript("OnEvent", function()
     elseif event == "PLAYER_PVP_KILLS_CHANGED" then
         LimitSoulshards()
     elseif event == "PLAYER_TARGET_CHANGED" then
-        MS.warlockDotIdx = 1
+        wl.warlockDotIdx = 1
     end
 end)
 
@@ -140,8 +145,10 @@ function MS:WL_Healthstone()
 
     if wasItemUsed then return end
 
+    local inCombat = UnitAffectingCombat("player")
+
     -- If spell not on cd, create stone
-    if not MS.inCombat then
+    if not inCombat then
         local isStoneInBag = MS:IsItemInBag(stoneItemName)
 
         if not isStoneInBag then
@@ -177,8 +184,9 @@ function MS:WL_Spellstone()
     local offhandItemLink = MS:GetEquipmentItemLink("off")
     local offhandItem = MS:ItemLinkToName(offhandItemLink)
     local stoneIsEquipped = offhandItem == stoneName
+    local inCombat = UnitAffectingCombat("player")
 
-    if (stoneIsEquipped and not MS.inCombat) then
+    if (stoneIsEquipped and not inCombat) then
         MS:UseEquipment("off")
         return
     end
@@ -210,7 +218,8 @@ function MS:WL_Replenish()
 
         -- cast Demon Buff
         local buffs = { "Demon Armor", "Demon Skin" }
-        local isSafeToCast = mp > 60 or not MS.inCombat
+        local inCombat = UnitAffectingCombat("player")
+        local isSafeToCast = mp > 60 or not inCombat
         local wasFound = false
 
         MS:TraverseTable(buffs, function(_, buffName)
@@ -258,10 +267,9 @@ function MS:WL_Replenish()
 end
 
 function MS:WL_Damage()
-    -- Check if valid target
-    local isNotValidTarget = not UnitExists("target") or UnitIsDeadOrGhost("target") or UnitIsFriend("player", "target")
-
-    if isNotValidTarget then TargetNearestEnemy() end
+    -- target a valid enemy
+    local hasTarget = MS:TargetEnemy()
+    if not hasTarget then return end
 
     local hasDebuff = false
     local spellIsCast = false
@@ -269,16 +277,13 @@ function MS:WL_Damage()
     local mp = MS:MPPercent("player")
     local enemyHP = MS:HPPercent("target")
     local enemyIsPlayer = UnitIsPlayer("target")
-    local enemyClass = UnitClass("target")
-    local isEnemyCaster = enemyIsPlayer and (enemyClass == "Warlock" or enemyClass == "Mage" or enemyClass == "Priest")
+    local isEnemyCaster = MS:IsEnemyCaster()
     local isClose = CheckInteractDistance("target", 3)
     local imTarget = UnitIsUnit("player", "targettarget")
     local inInstance = IsInInstance()
     local isFireElem = UnitCreatureFamily("target") == "Fire Elemental"
     local isMechanical = UnitCreatureType("target") == "Mechanical"
-    local lvlDiff = UnitLevel("player") - UnitLevel("target")
-    local mobIsGreen = lvlDiff <= GetQuestGreenRange()
-    local yieldsHonor = enemyIsPlayer or mobIsGreen
+    local yieldsHonorOrExp = MS:YieldsHonorOrExp()
     local hasBubble = MS:FindBuff("Sacrifice", "player")
     local imSafe = not imTarget or not isClose or hasBubble
 
@@ -298,7 +303,7 @@ function MS:WL_Damage()
 
     -- Cast Shadowbolt if Shadow Trance
     local haveShadowTrance = MS:FindBuff("Shadow Trance", "player")
-    -- local isFirstAttack = not MS.inCombat
+    -- local isFirstAttack = not inCombat
 
     if haveShadowTrance then
         local hasCast = MS:CastSpell("Shadow Bolt")
@@ -325,17 +330,17 @@ function MS:WL_Damage()
                 "Siphon Life"
             }
             local lastIdx = table.getn(spells)
-            local idx = MS.warlockDotIdx
+            local idx = wl.warlockDotIdx
 
             while (idx <= lastIdx) do
                 spellIsCast = MS:CastSpell(spells[idx])
-                MS.warlockDotIdx = idx + 1
-                idx = MS.warlockDotIdx
+                wl.warlockDotIdx = idx + 1
+                idx = wl.warlockDotIdx
                 if spellIsCast then return end
             end
         else
             -- cast Siphon Life
-            if yieldsHonor and not isMechanical then
+            if yieldsHonorOrExp and not isMechanical then
                 spellName = "Siphon Life"
                 hasDebuff = MS:FindBuff(spellName, "target")
 
@@ -354,7 +359,7 @@ function MS:WL_Damage()
             end)
 
             -- Cast curse
-            if yieldsHonor and not hasOtherCurse then
+            if yieldsHonorOrExp and not hasOtherCurse then
                 if isEnemyCaster or not inInstance then
                     spellIsCast = MS:CastSpell("Curse of Agony")
                     if spellIsCast then return end
@@ -403,7 +408,7 @@ function MS:WL_Damage()
         end
 
         -- Try casting Shadowburn
-        if yieldsHonor then
+        if yieldsHonorOrExp then
             spellIsCast = MS:CastSpell("Shadowburn")
             if spellIsCast then return end
         end
@@ -417,10 +422,9 @@ function MS:WL_Damage()
 end
 
 function MS:WL_Exhaust()
-    -- Check if valid target
-    local isNotValidTarget = not UnitExists("target") or UnitIsDeadOrGhost("target") or UnitIsFriend("player", "target")
-
-    if isNotValidTarget then TargetNearestEnemy() end
+    -- target a valid enemy
+    local hasTarget = MS:TargetEnemy()
+    if not hasTarget then return end
 
     -- Cast Exhaust
     local spellName = "Curse of Exhaustion"
@@ -436,10 +440,9 @@ function MS:WL_Exhaust()
 end
 
 function MS:WL_SoulFire()
-    -- Check if valid target
-    local isNotValidTarget = not UnitExists("target") or UnitIsDeadOrGhost("target") or UnitIsFriend("player", "target")
-
-    if isNotValidTarget then TargetNearestEnemy() end
+    -- target a valid enemy
+    local hasTarget = MS:TargetEnemy()
+    if not hasTarget then return end
 
     -- Don't cast on low hp enemies
     local enemyHP = MS:HPPercent("target")
@@ -522,8 +525,9 @@ function MS:WL_PetSpell()
         local hasBubble = MS:FindBuff("Sacrifice", "player")
         local hasDemSac = MS:FindBuff("Demonic Sacrifice", "player")
         local hp = MS:HPPercent("player")
+        local inCombat = UnitAffectingCombat("player")
 
-        if not hasBubble and MS.inCombat then
+        if not hasBubble and inCombat then
             MS:PetFollow()
 
             local hasSacrificed = MS:CastSpell("Sacrifice")
@@ -536,9 +540,9 @@ function MS:WL_PetSpell()
         end
 
     elseif hasSucc then
-        local isNotValidTarget = not UnitExists("target") or UnitIsDeadOrGhost("target") or UnitIsFriend("player", "target")
-
-        if isNotValidTarget then TargetNearestEnemy() end
+        -- target a valid enemy
+        local hasTarget = MS:TargetEnemy()
+        if not hasTarget then return end
 
         -- in order to get in range for Seduction
         MS:PetAttack()
@@ -580,17 +584,14 @@ function MS:WL_PetSpell()
 end
 
 function MS:WL_Drain()
-    -- Check if valid target
-    local isNotValidTarget = not UnitExists("target") or UnitIsDeadOrGhost("target") or UnitIsFriend("player", "target")
-
-    if isNotValidTarget then TargetNearestEnemy() end
+    -- target a valid enemy
+    local hasTarget = MS:TargetEnemy()
+    if not hasTarget then return end
 
     local myHP = MS:HPPercent("player")
     local enemyHP = MS:HPPercent("target")
     local enemyIsPlayer = UnitIsPlayer("target")
-    local lvlDiff = UnitLevel("player") - UnitLevel("target")
-    local mobIsGreen = lvlDiff <= GetQuestGreenRange()
-    local yieldsHonor = enemyIsPlayer or mobIsGreen
+    local yieldsHonorOrExp = MS:YieldsHonorOrExp()
     local enemyHasMana = false
     local shardsAmount = 0
     local onlyOnce = false
@@ -601,18 +602,18 @@ function MS:WL_Drain()
 
     if enemyIsPlayer then
         local targetClass = UnitClass("target")
-        local mpClasses = { "Warrior", "Rogue", "Druid" }
-        local isManaClass = not MS:CheckIfTableIncludes(mpClasses, targetClass)
+        local nonManaClasses = { "Warrior", "Rogue", "Druid" }
+        local isManaClass = not MS:CheckIfTableIncludes(nonManaClasses, targetClass)
         local enemyMP = MS:MPPercent("target")
 
         enemyHasMana = isManaClass and enemyMP > 0
     end
 
-    local _, _, _, _, drainSoulTalentRank = GetTalentInfo(1, 4)
+    local drainSoulTalentRank = MS:GetTalentRank(1, 4)
     local needShards = shardsAmount < MS_CONFIG.soulshards
     local shouldDrainSoul = drainSoulTalentRank > 0 or needShards
 
-    if shouldDrainSoul and yieldsHonor and myHP > 60 and enemyHP < 30 then
+    if shouldDrainSoul and yieldsHonorOrExp and myHP > 60 and enemyHP < 30 then
         local hasCast = MS:CastSpell("Drain Soul(Rank 1)")
         if hasCast then return end
     end

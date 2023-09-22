@@ -11,3 +11,6 @@ scripts\utils.lua
 scripts\variables.lua
 scripts\generic.lua
 scripts\classes\warlock.lua
+scripts\classes\rogue.lua
+scripts\classes\warrior.lua
+scripts\classes\hunter.lua

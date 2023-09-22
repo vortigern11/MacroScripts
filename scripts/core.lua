@@ -4,8 +4,6 @@ MS = CreateFrame("Frame", nil, UIParent)
 MS.t = CreateFrame("GameTooltip", "MS_T", UIParent, "GameTooltipTemplate")
 
 MS:RegisterEvent("ADDON_LOADED")
-MS:RegisterEvent("PLAYER_REGEN_ENABLED")
-MS:RegisterEvent("PLAYER_REGEN_DISABLED")
 MS:RegisterEvent("PET_ATTACK_START")
 MS:RegisterEvent("PET_ATTACK_STOP")
 MS:RegisterEvent("SPELLCAST_FAILED")
@@ -18,11 +16,6 @@ MS:SetScript("OnEvent", function()
     if event == "ADDON_LOADED" then
         if not MS_CONFIG then MS_CONFIG = {} end
         if not MS_GLOBAL_CONFIG then MS_GLOBAL_CONFIG = {} end
-    elseif event == "PLAYER_REGEN_ENABLED" then
-        MS.inCombat = false
-        MS.prevSpellCast = ""
-    elseif event == "PLAYER_REGEN_DISABLED" then
-        MS.inCombat = true
     elseif event == "PET_ATTACK_START" then
         MS.petIsAttacking = true
     elseif event == "PET_ATTACK_STOP" then
