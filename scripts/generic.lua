@@ -126,27 +126,31 @@ function MS:SwapFishing()
 
     if isPoleEquipped then
         local prevMainItemLink = MS.equipments["main"].prev
-        local wasTwoHanded = MS:CheckIfTwoHanded(prevMainItemLink)
         local prevMainItemName = MS:ItemLinkToName(prevMainItemLink)
 
         -- equip main hand
-        local wasMainEquipped = MS:EquipItem(prevMainItemName, "main")
-
-        -- equip off hand
-        if not wasTwoHanded then
-            local prevOffItemLink = MS.equipments["off"].prev
-            local prevOffItemName = MS:ItemLinkToName(prevOffItemLink)
-            local wasOffEquipped = MS:EquipItem(prevOffItemName, "off")
-        end
+        MS:EquipItem(prevMainItemName, "main")
     else
-        -- strip off hand
-        MS:StripItem("off")
+        local mainItemLink = MS:GetEquipmentItemLink("main")
+        local isTwoHanded = MS:CheckIfTwoHanded(mainItemLink)
+        local prevOffItemLink = MS.equipments["off"].prev
+        local hadOffhand = prevOffItemLink ~= ""
 
-        -- swap main with fishing pole
-        MS:TraverseTable(poles, function(_, pole)
-            local wasEquipped = MS:EquipItem(pole, "main")
-            if wasEquipped then return "break loop" end
-        end)
+        if not isTwoHanded and hadOffhand then
+            -- equip offhand if necessary
+            local prevOffItemName = MS:ItemLinkToName(prevOffItemLink)
+
+            MS:EquipItem(prevOffItemName, "off")
+        else
+            -- swap main with fishing pole
+            MS:TraverseTable(poles, function(_, pole)
+                -- strip off hand
+                MS:StripItem("off")
+
+                local wasEquipped = MS:EquipItem(pole, "main")
+                if wasEquipped then return "break loop" end
+            end)
+        end
     end
 end
 

@@ -190,7 +190,7 @@ end
 -- saves the name of the last equipped item in that slot
 function MS:EquipItem(itemName, part)
     local equipId = MS.equipments[part].id
-    local onlyOnce = true
+    local onlyOnce = false
     local wasEquipped = false
 
     MS:DoForItemInBags(itemName, onlyOnce, function(bag, slot)
@@ -372,11 +372,11 @@ end
 -- If invalid target to attack, target nearest enemy
 function MS:TargetEnemy()
     -- skip check for death, in order to not retarget just after killing an enemy
-    local isNotValidTarget = not UnitExists("target") or UnitIsFriend("player", "target")
+    local isNotValidTarget = not UnitExists("target") or UnitIsFriend("player", "target") or UnitIsDeadOrGhost("target")
     if isNotValidTarget then TargetNearestEnemy() end
 
-    local hasTarget = UnitExists("target") and not UnitIsFriend("player", "target") and not UnitIsDeadOrGhost("target")
-    return hasTarget
+    isNotValidTarget = not UnitExists("target") or UnitIsFriend("player", "target") or UnitIsDeadOrGhost("target")
+    return not isNotValidTarget
 end
 
 -- returns isEnemyPlayerCaster
@@ -404,17 +404,18 @@ function MS:GetTalentRank(tab, idx)
     return talentRank
 end
 
+-- Casts a silencing `spell` at the right time
 function MS:Silence(spell)
     local hasCast = false
     local targetIsCasting = ShaguTargetCastbar and ShaguTargetCastbar:IsVisible()
 
     if targetIsCasting then
-        local _, max = ShaguTargetCastbar:GetMinMaxValues()
+        local _, castTime = ShaguTargetCastbar:GetMinMaxValues()
         local cur = ShaguTargetCastbar:GetValue()
-        local percent = cur / max
+        local percent = (cur / castTime) * 100
 
-        if max <= 1 or percent > 60 then
-            hasCast = MS:CastSpell("spell")
+        if castTime < 1 or percent > 60 then
+            hasCast = MS:CastSpell(spell)
         end
     end
 
