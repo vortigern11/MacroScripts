@@ -115,9 +115,9 @@ MS.hpConsumables = {
         "Combat Healing Potion",
         "Greater Healing Potion",
         "Healing Potion",
-        "Minor Healing Potion",
-        "Discolored Healing Potion",
         "Lesser Healing Potion",
+        "Discolored Healing Potion",
+        "Minor Healing Potion",
     }
 }
 

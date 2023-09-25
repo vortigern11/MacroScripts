@@ -239,7 +239,7 @@ function MS:R_Damage()
     local hasBlind = MS:FindBuff("Blind", "target")
     local hasKidney = MS:FindBuff("Kidney Shot", "target")
     local hasCheapShot = MS:FindBuff("Cheap Shot", "target")
-    local hasSap = MS:FindBuff("Sap", "mouseover")
+    local hasSap = MS:FindBuff("Sap", "target")
     local targetIsStunned = hasGouge or hasBlind or hasKidney or hasCheapShot or hasSap
 
     if hasDagger and targetIsStunned then
@@ -275,7 +275,7 @@ function MS:R_Damage()
 
     -- cast Kick
     hasCast = MS:Silence("Kick")
-    if not hasCast then return end
+    if hasCast then return end
 
     -- cast Riposte
     local hasRiposte = MS:FindBuff("Riposte", "target")
@@ -304,20 +304,20 @@ function MS:R_Damage()
         if hasCast then return end
     end
 
+    -- cast Eviscerate
+    local shouldEvis = comboPoints == 5 or (comboPoints > 1 and enemyHP < 30)
+
+    if shouldEvis then
+        hasCast = MS:CastSpell("Eviscerate")
+        if hasCast then return end
+    end
+
     -- cast Slice and Dice
     local hasSliceAndDice = MS:FindBuff("Slice and Dice", "player")
     local shouldSliceDice = comboPoints > 0 and comboPoints < 3 and not hasSliceAndDice
 
     if shouldSliceDice then
         hasCast = MS:CastSpell("Slice and Dice")
-        if hasCast then return end
-    end
-
-    -- cast Eviscerate
-    local shouldEvis = comboPoints == 5 or (comboPoints > 1 and enemyHP < 30)
-
-    if shouldEvis then
-        hasCast = MS:CastSpell("Eviscerate")
         if hasCast then return end
     end
 
