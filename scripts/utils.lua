@@ -414,7 +414,7 @@ function MS:Silence(spell)
         local cur = ShaguTargetCastbar:GetValue()
         local percent = (cur / castTime) * 100
 
-        if castTime < 1 or percent > 60 then
+        if castTime < 1 or percent > 50 then
             hasCast = MS:CastSpell(spell)
         end
     end

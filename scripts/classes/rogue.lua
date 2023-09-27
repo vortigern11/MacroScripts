@@ -1,7 +1,4 @@
--- For hardcore professions:
--- Start with skinning + herbalism
--- Leave herbalism items in the bank
--- When you have enough gold for lvl 40 mount, switch skinning for alchemy
+-- hardcore professions: herb + alchemy
 
 local rg = CreateFrame("Frame")
 
@@ -81,6 +78,7 @@ function MS:R_CrowdControl()
     local hasCast = false
     local targetShouldBeStunned = false
     local mouseoverShouldBeStunned = false
+    local hp = MS:HPPercent("player")
 
     local isClose = CheckInteractDistance("target", 3)
     local hasGouge = MS:FindBuff("Gouge", "target")
@@ -109,10 +107,17 @@ function MS:R_CrowdControl()
 
     -- maybe target doesn't need CC
     if not mouseoverShouldBeStunned and not targetShouldBeStunned then
+        if hp < 50 then
+            local usedHPPot = MS:UseHealthConsumable()
+            if usedHPPot then return end
+        end
+
         return
     end
 
-    if hasStealth then
+    local imSafe = not UnitIsUnit("player", "targettarget")
+
+    if hasStealth and imSafe then
         -- cast Sap
         local enemyInCombat = UnitAffectingCombat("target")
         local enemyIsPlayer = UnitIsPlayer("target")
@@ -186,6 +191,10 @@ function MS:R_Damage()
     local hasStealth = MS:FindBuff("Stealth", "player")
     local imSafe = not UnitIsUnit("player", "targettarget")
 
+    -- TODO: switch to other weapon from bag 1, slot 1
+    -- local itemTypeOfFirstSlot = MS:GetItemType(GetContainerItemLink(0, 1))
+    -- local hasWeaponInBag = itemTypeOfFirstSlot == "Weapon"
+
     -- get in Stealth if appropriate
     if not hasStealth and enemyIsPlayer then
         hasStealth = MS:R_Stealth()
@@ -193,7 +202,7 @@ function MS:R_Damage()
     end
 
     -- do the stealth combo
-    if hasStealth then
+    if hasStealth and imSafe then
         -- try to cast Pick Pocket
         if not enemyIsPlayer and not rg.hasPickedPockets then
             hasCast = MS:CastSpell("Pick Pocket")
@@ -212,13 +221,13 @@ function MS:R_Damage()
             if isBoss then
                 hasCast = MS:CastSpell("Garrote")
                 if hasCast then return end
-            else
-                hasCast = MS:CastSpell("Cheap Shot")
-                if hasCast then return end
             end
 
-            -- don't get out of stealth unintentionally
-            if energy < 60 then return end
+            hasCast = MS:CastSpell("Cheap Shot")
+            if hasCast then return end
+
+            hasCast = MS:CastSpell("Sinister Strike")
+            if hasCast then return end
         end
 
         -- try to cast Ambush or Backstab
@@ -228,10 +237,10 @@ function MS:R_Damage()
 
             hasCast = MS:CastSpell("Backstab")
             if hasCast then return end
-
-            -- don't get out of stealth unintentionally
-            if energy < 60 then return end
         end
+
+        -- don't get out of stealth unintentionally
+        return
     end
 
     -- try to Backstab before anything else during stun
@@ -251,13 +260,7 @@ function MS:R_Damage()
     if not MS.isMeleeAttacking then AttackTarget("target") end
 
     -- cast low hp spells
-    if hp < 60 then
-        -- emergency HP
-        if hp < 40 then
-            local wasUsed = MS:UseHealthConsumable()
-            if wasUsed then return end
-        end
-
+    if hp < 50 then
         -- cast Evasion
         local hasEvasion = MS:FindBuff("Evasion", "player")
         if not hasEvasion and not imSafe then
@@ -271,6 +274,9 @@ function MS:R_Damage()
             hasCast = MS:CastSpell("Berserking")
             if hasCast then return end
         end
+
+        local wasUsed = MS:UseHealthConsumable()
+        if wasUsed then return end
     end
 
     -- cast Kick
@@ -283,14 +289,6 @@ function MS:R_Damage()
 
     if canRiposte then
         hasCast = MS:CastSpell("Riposte")
-        if hasCast then return end
-    end
-
-    -- cast Ghostly Strike
-    local hasGhostlyStrike = MS:FindBuff("Ghostly Strike", "player")
-
-    if not hasGhostlyStrike and not imSafe then
-        hasCast = MS:CastSpell("Ghostly Strike")
         if hasCast then return end
     end
 
@@ -312,12 +310,11 @@ function MS:R_Damage()
         if hasCast then return end
     end
 
-    -- cast Slice and Dice
-    local hasSliceAndDice = MS:FindBuff("Slice and Dice", "player")
-    local shouldSliceDice = comboPoints > 0 and comboPoints < 3 and not hasSliceAndDice
+    -- cast Ghostly Strike
+    local hasGhostlyStrike = MS:FindBuff("Ghostly Strike", "player")
 
-    if shouldSliceDice then
-        hasCast = MS:CastSpell("Slice and Dice")
+    if not hasGhostlyStrike and not imSafe and enemyHP > 30 then
+        hasCast = MS:CastSpell("Ghostly Strike")
         if hasCast then return end
     end
 
@@ -325,12 +322,34 @@ function MS:R_Damage()
     if hasDagger and rg.tryBackstab then
         hasCast = MS:CastSpell("Backstab")
         if hasCast then return end
+
+        -- wait for energy
+        if energy < 60 then return end
     else
         -- reset the variable
         rg.tryBackstab = true
     end
 
+    -- cast Slice and Dice
+    local hasSliceAndDice = MS:FindBuff("Slice and Dice", "player")
+    local shouldSliceDice = comboPoints == 1 and not hasSliceAndDice
+
+    if shouldSliceDice then
+        hasCast = MS:CastSpell("Slice and Dice")
+        if hasCast then return end
+    end
+
     -- cast Sinister Strike
     hasCast = MS:CastSpell("Sinister Strike")
     if hasCast then return end
+end
+
+function MS:R_Speed()
+    -- cast Sprint
+    local hasCast = MS:CastSpell("Sprint")
+    if hasCast then return end
+
+    -- use Swiftness Potion
+    local wasUsed = MS:UseBagItem("Swiftness Potion")
+    if wasUsed then return end
 end
