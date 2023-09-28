@@ -186,6 +186,24 @@ function MS:UseEquipment(part)
     return wasUsed
 end
 
+-- Equips in `part` place the item from `bag, slot`
+function MS:EquipItemFromBagSlot(part, bag, slot)
+    local itemLink = GetContainerItemLink(bag, slot)
+    local isItemInSlot = type(itemLink) == "string"
+    local wasEquipped = false
+
+    if isItemInSlot then
+        local equipId = MS.equipments[part].id
+
+        MS:SaveEquipmentItemLink(part)
+        PickupContainerItem(bag, slot)
+        EquipCursorItem(equipId)
+        wasEquipped = true
+    end
+
+    return wasEquipped
+end
+
 -- Equips `itemName` in `part` slot
 -- saves the name of the last equipped item in that slot
 function MS:EquipItem(itemName, part)
@@ -399,9 +417,11 @@ function MS:YieldsHonorOrExp()
 end
 
 -- Get the rank of the talent at tab and idx
-function MS:GetTalentRank(tab, idx)
+function MS:GetTalent(tab, idx)
     local _, _, _, _, talentRank = GetTalentInfo(tab, idx)
-    return talentRank
+    local hasLearned = talentRank >= 1
+
+    return hasLearned, talentRank
 end
 
 -- Casts a silencing `spell` at the right time
@@ -414,7 +434,7 @@ function MS:Silence(spell)
         local cur = ShaguTargetCastbar:GetValue()
         local percent = (cur / castTime) * 100
 
-        if castTime < 1 or percent > 50 then
+        if castTime > 1 and percent > 50 then
             hasCast = MS:CastSpell(spell)
         end
     end

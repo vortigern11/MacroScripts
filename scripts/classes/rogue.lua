@@ -28,10 +28,14 @@ rg:SetScript("OnEvent", function()
             rg.tryBackstab = false
         end
     elseif event == "UNIT_COMBAT" then
-        local hasParried = arg1 == "player" and arg2 == "PARRY"
+        local hasRiposteTalent = MS:GetTalent(2, 8)
 
-        if hasParried then
-            rg.lastParry = GetTime()
+        if hasRiposteTalent then
+            local hasParried = arg1 == "player" and arg2 == "PARRY"
+
+            if hasParried then
+                rg.lastParry = GetTime()
+            end
         end
     elseif event == "PLAYER_TARGET_CHANGED" then
         rg.hasPickedPockets = false
@@ -100,18 +104,18 @@ function MS:R_CrowdControl()
 
         mouseoverShouldBeStunned = isClose and not hasGouge and not hasBlind and not hasKidney and not hasCheapShot and not hasSap
 
-        if mouseoverShouldBeStunned then
-            TargetUnit("mouseover")
-        end
+        if mouseoverShouldBeStunned then TargetUnit("mouseover") end
     end
 
     -- maybe target doesn't need CC
     if not mouseoverShouldBeStunned and not targetShouldBeStunned then
-        if hp < 50 then
+        if hp < 60 then
             local usedHPPot = MS:UseHealthConsumable()
             if usedHPPot then return end
         end
 
+        -- return to main target
+        if mouseoverShouldBeStunned then TargetLastTarget() end
         return
     end
 
@@ -133,22 +137,25 @@ function MS:R_CrowdControl()
             hasCast = MS:CastSpell("Cheap Shot")
         end
 
-        -- return to main target
-        if mouseoverShouldBeStunned then TargetLastTarget() end
-
         -- don't get out of stealth
         local energy = UnitMana("player")
-        if energy < 60 then return end
+        if energy < 60 then
+            -- return to main target
+            if mouseoverShouldBeStunned then TargetLastTarget() end
+            return
+        end
     end
 
     -- try to Kidney Shot
-    local unitLvl = UnitLevel("target")
-    local isBoss = type(unitLvl) ~= "number" or unitLvl < 1
-    local comboPoints = GetComboPoints("player", "target")
-    local shouldKidneyShot = not isBoss and comboPoints > 3
+    if not hasCast then
+        local unitLvl = UnitLevel("target")
+        local isBoss = type(unitLvl) ~= "number" or unitLvl < 1
+        local comboPoints = GetComboPoints("player", "target")
+        local shouldKidneyShot = not isBoss and comboPoints > 2
 
-    if not hasCast and shouldKidneyShot then
-        hasCast = MS:CastSpell("Kidney Shot")
+        if shouldKidneyShot then
+            hasCast = MS:CastSpell("Kidney Shot")
+        end
     end
 
     -- try to Kick
@@ -162,6 +169,7 @@ function MS:R_CrowdControl()
 
     -- return to main target
     if mouseoverShouldBeStunned then TargetLastTarget() end
+    return
 end
 
 function MS:R_Damage()
@@ -191,10 +199,6 @@ function MS:R_Damage()
     local hasStealth = MS:FindBuff("Stealth", "player")
     local imSafe = not UnitIsUnit("player", "targettarget")
 
-    -- TODO: switch to other weapon from bag 1, slot 1
-    -- local itemTypeOfFirstSlot = MS:GetItemType(GetContainerItemLink(0, 1))
-    -- local hasWeaponInBag = itemTypeOfFirstSlot == "Weapon"
-
     -- get in Stealth if appropriate
     if not hasStealth and enemyIsPlayer then
         hasStealth = MS:R_Stealth()
@@ -203,7 +207,7 @@ function MS:R_Damage()
 
     -- do the stealth combo
     if hasStealth and imSafe then
-        -- try to cast Pick Pocket
+        -- cast Pick Pocket
         if not enemyIsPlayer and not rg.hasPickedPockets then
             hasCast = MS:CastSpell("Pick Pocket")
 
@@ -213,28 +217,33 @@ function MS:R_Damage()
             end
         end
 
-        -- try to cast Cheap Shot or Garrote
+        -- cast Garrote
+        local unitLvl = UnitLevel("target")
+        local isBoss = type(unitLvl) ~= "number" or unitLvl < 1
+        local hasOpportunityTalent = MS:GetTalent(3, 2)
+        local shouldGarrote = not hasDagger and hasOpportunityTalent
+
+        if isBoss or shouldGarrote then
+            hasCast = MS:CastSpell("Garrote")
+            if hasCast then return end
+        end
+
+        -- cast Cheap Shot
         if not hasDagger or enemyIsPlayer then
-            local unitLvl = UnitLevel("target")
-            local isBoss = type(unitLvl) ~= "number" or unitLvl < 1
-
-            if isBoss then
-                hasCast = MS:CastSpell("Garrote")
-                if hasCast then return end
-            end
-
             hasCast = MS:CastSpell("Cheap Shot")
             if hasCast then return end
 
+            -- for low lvl
             hasCast = MS:CastSpell("Sinister Strike")
             if hasCast then return end
         end
 
-        -- try to cast Ambush or Backstab
+        -- cast Ambush
         if hasDagger then
             hasCast = MS:CastSpell("Ambush")
             if hasCast then return end
 
+            -- for low lvl
             hasCast = MS:CastSpell("Backstab")
             if hasCast then return end
         end
@@ -242,22 +251,6 @@ function MS:R_Damage()
         -- don't get out of stealth unintentionally
         return
     end
-
-    -- try to Backstab before anything else during stun
-    local hasGouge = MS:FindBuff("Gouge", "target")
-    local hasBlind = MS:FindBuff("Blind", "target")
-    local hasKidney = MS:FindBuff("Kidney Shot", "target")
-    local hasCheapShot = MS:FindBuff("Cheap Shot", "target")
-    local hasSap = MS:FindBuff("Sap", "target")
-    local targetIsStunned = hasGouge or hasBlind or hasKidney or hasCheapShot or hasSap
-
-    if hasDagger and targetIsStunned then
-        hasCast = MS:CastSpell("Backstab")
-        return -- wait for Backstab
-    end
-
-    -- start melee auto attacking
-    if not MS.isMeleeAttacking then AttackTarget("target") end
 
     -- cast low hp spells
     if hp < 50 then
@@ -279,17 +272,37 @@ function MS:R_Damage()
         if wasUsed then return end
     end
 
+    -- start melee auto attacking
+    if not MS.isMeleeAttacking then AttackTarget("target") end
+
+    -- try to Backstab before anything else during stun
+    local hasGouge = MS:FindBuff("Gouge", "target")
+    local hasBlind = MS:FindBuff("Blind", "target")
+    local hasKidney = MS:FindBuff("Kidney Shot", "target")
+    local hasCheapShot = MS:FindBuff("Cheap Shot", "target")
+    local hasSap = MS:FindBuff("Sap", "target")
+    local targetIsStunned = hasGouge or hasBlind or hasKidney or hasCheapShot or hasSap
+
+    if targetIsStunned and hasDagger then
+        hasCast = MS:CastSpell("Backstab")
+        return -- wait for Backstab
+    end
+
     -- cast Kick
     hasCast = MS:Silence("Kick")
     if hasCast then return end
 
     -- cast Riposte
-    local hasRiposte = MS:FindBuff("Riposte", "target")
-    local canRiposte = not hasRiposte and ((GetTime() - rg.lastParry) < 5)
+    local hasRiposteTalent = MS:GetTalent(2, 8)
 
-    if canRiposte then
-        hasCast = MS:CastSpell("Riposte")
-        if hasCast then return end
+    if hasRiposteTalent then
+        -- don't check if debuff is active on purpose (more dmg)
+        local canRiposte = ((GetTime() - rg.lastParry) < 5)
+
+        if canRiposte then
+            hasCast = MS:CastSpell("Riposte")
+            if hasCast then return end
+        end
     end
 
     -- cast Expose Armor

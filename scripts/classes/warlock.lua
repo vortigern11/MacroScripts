@@ -606,9 +606,9 @@ function MS:WL_Drain()
         enemyHasMana = isManaClass and enemyMP > 0
     end
 
-    local drainSoulTalentRank = MS:GetTalentRank(1, 4)
+    local hasDrainSoulTalent = MS:GetTalent(1, 4)
     local needShards = shardsAmount < MS_CONFIG.soulshards
-    local shouldDrainSoul = drainSoulTalentRank > 0 or needShards
+    local shouldDrainSoul = hasDrainSoulTalent or needShards
 
     if shouldDrainSoul and yieldsHonorOrExp and myHP > 60 and enemyHP < 30 then
         local hasCast = MS:CastSpell("Drain Soul(Rank 1)")
