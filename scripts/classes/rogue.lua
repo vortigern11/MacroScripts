@@ -252,8 +252,20 @@ function MS:R_Damage()
         return
     end
 
+    -- cast Adrenaline Rush if Blade Flurry is active
+    local hasBladeFlurry = MS:FindBuff("Blade Flurry", "player")
+
+    if hasBladeFlurry then
+        hasCast = MS:CastSpell("Adrenaline Rush")
+        if hasCast then return end
+    end
+
     -- cast low hp spells
     if hp < 50 then
+        -- consume for HP
+        local wasUsed = MS:UseHealthConsumable()
+        if wasUsed then return end
+
         -- cast Evasion
         local hasEvasion = MS:FindBuff("Evasion", "player")
         if not hasEvasion and not imSafe then
@@ -267,9 +279,6 @@ function MS:R_Damage()
             hasCast = MS:CastSpell("Berserking")
             if hasCast then return end
         end
-
-        local wasUsed = MS:UseHealthConsumable()
-        if wasUsed then return end
     end
 
     -- start melee auto attacking
@@ -305,21 +314,42 @@ function MS:R_Damage()
         end
     end
 
-    -- cast Expose Armor
-    local hasSunderArmor = MS:FindBuff("Sunder Armor", "target")
-    local hasExposeArmor = MS:FindBuff("Expose Armor", "target")
-    local shouldExposeArmor = comboPoints > 2 and enemyHP > 50 and not hasExposeArmor and not hasSunderArmor
+    -- cast Rupture or Expose Armor
+    if comboPoints > 1 and enemyHP > 50 then
+        local hasRuptureTalent = MS:GetTalent(3, 11)
 
-    if shouldExposeArmor then
-        hasCast = MS:CastSpell("Expose Armor")
-        if hasCast then return end
+        if hasRuptureTalent then
+            local hasRupture = MS:FindBuff("Rupture", "target")
+
+            if not hasRupture then
+                hasCast = MS:CastSpell("Rupture")
+                if hasCast then return end
+            end
+        else
+            local hasSunderArmor = MS:FindBuff("Sunder Armor", "target")
+            local hasExposeArmor = MS:FindBuff("Expose Armor", "target")
+            local shouldExposeArmor = not hasExposeArmor and not hasSunderArmor
+
+            if shouldExposeArmor then
+                hasCast = MS:CastSpell("Expose Armor")
+                if hasCast then return end
+            end
+        end
     end
 
     -- cast Eviscerate
-    local shouldEvis = comboPoints == 5 or (comboPoints > 1 and enemyHP < 30)
+    local shouldEvis = comboPoints == 5 or (comboPoints > 1 and enemyHP < 40)
 
     if shouldEvis then
         hasCast = MS:CastSpell("Eviscerate")
+        if hasCast then return end
+    end
+
+    -- cast Hemmorhage
+    local hasHemmorhage = MS:FindBuff("Hemmorhage", "target")
+
+    if not hasHemmorhage then
+        hasCast = MS:CastSpell("Hemmorhage")
         if hasCast then return end
     end
 
@@ -345,7 +375,7 @@ function MS:R_Damage()
 
     -- cast Slice and Dice
     local hasSliceAndDice = MS:FindBuff("Slice and Dice", "player")
-    local shouldSliceDice = comboPoints == 1 and not hasSliceAndDice
+    local shouldSliceDice = not hasSliceAndDice and comboPoints == 1
 
     if shouldSliceDice then
         hasCast = MS:CastSpell("Slice and Dice")
@@ -365,4 +395,17 @@ function MS:R_Speed()
     -- use Swiftness Potion
     local wasUsed = MS:UseBagItem("Swiftness Potion")
     if wasUsed then return end
+end
+
+function MS:R_Vanish()
+    local hasStealth = MS:FindBuff("Stealth", "player")
+
+    -- cast Vanish or Preparation
+    if not hasStealth then
+        hasStealth = MS:CastSpell("Vanish")
+        if hasStealth then return end
+
+        local hasCast = MS:CastSpell("Preparation")
+        if hasCast then return end
+    end
 end
