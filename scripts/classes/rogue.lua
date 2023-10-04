@@ -388,13 +388,19 @@ function MS:R_Damage()
 end
 
 function MS:R_Speed()
+    local hasCast = false
+
     -- cast Sprint
-    local hasCast = MS:CastSpell("Sprint")
+    hasCast = MS:CastSpell("Sprint")
+    if hasCast then return end
+
+    -- cast Exit Strategy(gnome racial)
+    hasCast = MS:CastSpell("Exit Strategy")
     if hasCast then return end
 
     -- use Swiftness Potion
-    local wasUsed = MS:UseBagItem("Swiftness Potion")
-    if wasUsed then return end
+    hasCast = MS:UseBagItem("Swiftness Potion")
+    if hasCast then return end
 end
 
 function MS:R_Vanish()
