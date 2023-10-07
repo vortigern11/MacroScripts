@@ -119,16 +119,17 @@ function MS:R_CrowdControl()
         return
     end
 
-    local imSafe = not UnitIsUnit("player", "targettarget")
+    local hasBleed = MS:FindBuff("Garrote", "target")
+    hasBleed = hasBleed or MS:FindBuff("Rupture", "target")
 
-    if hasStealth and imSafe then
+    if hasStealth then
         -- cast Sap
         local enemyInCombat = UnitAffectingCombat("target")
         local enemyIsPlayer = UnitIsPlayer("target")
         local isHumanoid = UnitCreatureType("target") == "Humanoid"
         local hasSap = MS:FindBuff("Sap", "target")
 
-        if not hasCast and not hasSap and not enemyInCombat and (enemyIsPlayer or isHumanoid) then
+        if not hasCast and not hasSap and not enemyInCombat and not hasBleed and (enemyIsPlayer or isHumanoid) then
             hasCast = MS:CastSpell("Sap")
         end
 
@@ -138,9 +139,9 @@ function MS:R_CrowdControl()
         end
 
         -- don't get out of stealth
-        local energy = UnitMana("player")
-        if energy < 60 then
-            -- return to main target
+        local imSafe = not UnitIsUnit("player", "targettarget")
+
+        if imSafe then
             if mouseoverShouldBeStunned then TargetLastTarget() end
             return
         end
@@ -148,12 +149,11 @@ function MS:R_CrowdControl()
 
     -- try to Kidney Shot
     if not hasCast then
-        local unitLvl = UnitLevel("target")
-        local isBoss = type(unitLvl) ~= "number" or unitLvl < 1
+        local targetLvl = UnitLevel("target")
+        local isBoss = type(targetLvl) ~= "number" or targetLvl < 1
         local comboPoints = GetComboPoints("player", "target")
-        local shouldKidneyShot = not isBoss and comboPoints > 2
 
-        if shouldKidneyShot then
+        if not isBoss and comboPoints > 3 then
             hasCast = MS:CastSpell("Kidney Shot")
         end
     end
@@ -161,11 +161,13 @@ function MS:R_CrowdControl()
     -- try to Kick
     if not hasCast then hasCast = MS:Silence("Kick") end
 
-    -- try to Gauge
-    if not hasCast then hasCast = MS:CastSpell("Gouge") end
+    if not hasBleed then
+        -- try to Gauge
+        if not hasCast then hasCast = MS:CastSpell("Gouge") end
 
-    -- try to Blind
-    if not hasCast then hasCast = MS:CastSpell("Blind") end
+        -- try to Blind
+        if not hasCast then hasCast = MS:CastSpell("Blind") end
+    end
 
     -- return to main target
     if mouseoverShouldBeStunned then TargetLastTarget() end
@@ -189,15 +191,27 @@ function MS:R_Damage()
     local comboPoints = GetComboPoints("player", "target")
     local hp = MS:HPPercent("player")
     local energy = UnitMana("player")
+    local level = UnitLevel("player")
 
     local enemyHP = MS:HPPercent("target")
     local enemyIsPlayer = UnitIsPlayer("target")
     local enemyInCombat = UnitAffectingCombat("target")
+    local enemyWarrior = enemyIsPlayer and UnitClass("target") == "Warrior"
 
     local _, mainSubType = MS:GetItemType(MS:GetEquipmentItemLink("main"))
     local hasDagger = mainSubType == "Daggers"
     local hasStealth = MS:FindBuff("Stealth", "player")
-    local imSafe = not UnitIsUnit("player", "targettarget")
+
+    local hasGouge = MS:FindBuff("Gouge", "target")
+    local hasBlind = MS:FindBuff("Blind", "target")
+    local hasKidney = MS:FindBuff("Kidney Shot", "target")
+    local hasCheapShot = MS:FindBuff("Cheap Shot", "target")
+    local hasSap = MS:FindBuff("Sap", "target")
+    local targetIsStunned = hasGouge or hasBlind or hasKidney or hasCheapShot or hasSap
+
+    local imSafe = targetIsStunned or not UnitIsUnit("player", "targettarget")
+    local inInstance, instanceType = IsInInstance()
+    local inDungOrRaid = inInstance and (instanceType == "party" or instanceType == "raid")
 
     -- get in Stealth if appropriate
     if not hasStealth and enemyIsPlayer then
@@ -206,7 +220,7 @@ function MS:R_Damage()
     end
 
     -- do the stealth combo
-    if hasStealth and imSafe then
+    if hasStealth then
         -- cast Pick Pocket
         if not enemyIsPlayer and not rg.hasPickedPockets then
             hasCast = MS:CastSpell("Pick Pocket")
@@ -217,19 +231,30 @@ function MS:R_Damage()
             end
         end
 
-        -- cast Garrote
-        local unitLvl = UnitLevel("target")
-        local isBoss = type(unitLvl) ~= "number" or unitLvl < 1
-        local hasOpportunityTalent = MS:GetTalent(3, 2)
-        local shouldGarrote = not hasDagger and hasOpportunityTalent
+        -- cast Sap
+        local enemyInCombat = UnitAffectingCombat("target")
+        local enemyIsPlayer = UnitIsPlayer("target")
+        local hasSap = MS:FindBuff("Sap", "target")
+        local hasBleed = MS:FindBuff("Garrote", "target")
+        hasBleed = hasBleed or MS:FindBuff("Rupture", "target")
 
-        if isBoss or shouldGarrote then
+        if enemyIsPlayer and not hasSap and not enemyInCombat and not hasBleed then
+            hasCast = MS:CastSpell("Sap")
+            if hasCast then return end
+        end
+
+        -- cast Garrote
+        local targetLvl = UnitLevel("target")
+        local isBoss = type(targetLvl) ~= "number" or targetLvl < 1
+        local hasOpportunityTalent = MS:GetTalent(3, 2)
+
+        if isBoss or (not hasDagger and hasOpportunityTalent) then
             hasCast = MS:CastSpell("Garrote")
             if hasCast then return end
         end
 
         -- cast Cheap Shot
-        if not hasDagger or enemyIsPlayer then
+        if not hasDagger or (comboPoints == 0 and enemyIsPlayer) then
             hasCast = MS:CastSpell("Cheap Shot")
             if hasCast then return end
 
@@ -249,10 +274,44 @@ function MS:R_Damage()
         end
 
         -- don't get out of stealth unintentionally
-        return
+        if imSafe then return end
     end
 
-    -- cast Adrenaline Rush if Blade Flurry is active
+    -- start melee attack
+    if not MS.isMeleeAttacking and not hasGouge and not hasBlind and not hasSap then
+        AttackTarget("target")
+    end
+
+    -- cast low hp spells
+    if hp < 50 then
+        -- cast Berserking (troll racial)
+        local hasBerserking = MS:FindBuff("Berserking", "player")
+
+        if not hasBerserking then
+            hasCast = MS:CastSpell("Berserking")
+            if hasCast then return end
+        end
+
+        -- consume for HP
+        local wasUsed = MS:UseHealthConsumable()
+        if wasUsed then return end
+
+        -- cast Evasion
+        local hasEvasion = MS:FindBuff("Evasion", "player")
+
+        if not hasEvasion and not imSafe and not enemyWarrior then
+            hasCast = MS:CastSpell("Evasion")
+            if hasCast then return end
+        end
+    end
+
+    -- cast Feint
+    if inDungOrRaid and not imSafe then
+        hasCast = MS:CastSpell("Feint")
+        if hasCast then return end
+    end
+
+    -- cast Adrenaline Rush
     local hasBladeFlurry = MS:FindBuff("Blade Flurry", "player")
 
     if hasBladeFlurry then
@@ -260,52 +319,40 @@ function MS:R_Damage()
         if hasCast then return end
     end
 
-    -- cast low hp spells
-    if hp < 50 then
-        -- consume for HP
-        local wasUsed = MS:UseHealthConsumable()
-        if wasUsed then return end
+    -- cast Kidney Shot
+    if enemyIsPlayer and comboPoints == 5 then
+        hasCast = MS:CastSpell("Kidney Shot")
+        if hasCast then return end
+    end
 
-        -- cast Evasion
-        local hasEvasion = MS:FindBuff("Evasion", "player")
-        if not hasEvasion and not imSafe then
-            hasCast = MS:CastSpell("Evasion")
-            if hasCast then return end
-        end
+    -- cast Slice and Dice
+    local hasSliceAndDice = MS:FindBuff("Slice and Dice", "player")
 
-        -- cast Berserking (troll racial)
-        local hasBerserking = MS:FindBuff("Berserking", "player")
-        if not hasBerserking then
-            hasCast = MS:CastSpell("Berserking")
+    if not hasSliceAndDice and comboPoints > 0 and not enemyIsPlayer then
+        local inHighLvlInstance = level >= 60 and inDungOrRaid
+        local normalRequirements = comboPoints == 1 or (comboPoints > 0 and enemyHP < 30)
+
+        if inHighLvlInstance or normalRequirements then
+            hasCast = MS:CastSpell("Slice and Dice")
             if hasCast then return end
         end
     end
 
-    -- start melee auto attacking
-    if not MS.isMeleeAttacking then AttackTarget("target") end
+    -- cast Backstab
+    local hasBackstab = MS:FindSpell("Backstab")
 
-    -- try to Backstab before anything else during stun
-    local hasGouge = MS:FindBuff("Gouge", "target")
-    local hasBlind = MS:FindBuff("Blind", "target")
-    local hasKidney = MS:FindBuff("Kidney Shot", "target")
-    local hasCheapShot = MS:FindBuff("Cheap Shot", "target")
-    local hasSap = MS:FindBuff("Sap", "target")
-    local targetIsStunned = hasGouge or hasBlind or hasKidney or hasCheapShot or hasSap
-
-    if targetIsStunned and hasDagger then
+    if hasBackstab and hasDagger and comboPoints < 5 and (imSafe or rg.tryBackstab) then
         hasCast = MS:CastSpell("Backstab")
-        return -- wait for Backstab
+        if hasCast or imSafe then return end
     end
 
-    -- cast Kick
-    hasCast = MS:Silence("Kick")
-    if hasCast then return end
+    -- reset the Backstab variable
+    rg.tryBackstab = true
 
     -- cast Riposte
     local hasRiposteTalent = MS:GetTalent(2, 8)
 
     if hasRiposteTalent then
-        -- don't check if debuff is active on purpose (more dmg)
         local canRiposte = ((GetTime() - rg.lastParry) < 5)
 
         if canRiposte then
@@ -328,9 +375,8 @@ function MS:R_Damage()
         else
             local hasSunderArmor = MS:FindBuff("Sunder Armor", "target")
             local hasExposeArmor = MS:FindBuff("Expose Armor", "target")
-            local shouldExposeArmor = not hasExposeArmor and not hasSunderArmor
 
-            if shouldExposeArmor then
+            if inDungOrRaid and not hasExposeArmor and not hasSunderArmor then
                 hasCast = MS:CastSpell("Expose Armor")
                 if hasCast then return end
             end
@@ -338,9 +384,7 @@ function MS:R_Damage()
     end
 
     -- cast Eviscerate
-    local shouldEvis = comboPoints == 5 or (comboPoints > 1 and enemyHP < 40)
-
-    if shouldEvis then
+    if comboPoints == 5 or (comboPoints > 2 and enemyHP < 40) then
         hasCast = MS:CastSpell("Eviscerate")
         if hasCast then return end
     end
@@ -356,29 +400,8 @@ function MS:R_Damage()
     -- cast Ghostly Strike
     local hasGhostlyStrike = MS:FindBuff("Ghostly Strike", "player")
 
-    if not hasGhostlyStrike and not imSafe and enemyHP > 30 then
+    if not hasGhostlyStrike and not imSafe and enemyHP > 30 and not enemyWarrior then
         hasCast = MS:CastSpell("Ghostly Strike")
-        if hasCast then return end
-    end
-
-    -- cast Backstab
-    if hasDagger and rg.tryBackstab then
-        hasCast = MS:CastSpell("Backstab")
-        if hasCast then return end
-
-        -- wait for energy
-        if energy < 60 then return end
-    else
-        -- reset the variable
-        rg.tryBackstab = true
-    end
-
-    -- cast Slice and Dice
-    local hasSliceAndDice = MS:FindBuff("Slice and Dice", "player")
-    local shouldSliceDice = not hasSliceAndDice and comboPoints == 1
-
-    if shouldSliceDice then
-        hasCast = MS:CastSpell("Slice and Dice")
         if hasCast then return end
     end
 
@@ -390,12 +413,12 @@ end
 function MS:R_Speed()
     local hasCast = false
 
-    -- cast Sprint
-    hasCast = MS:CastSpell("Sprint")
-    if hasCast then return end
-
     -- cast Exit Strategy(gnome racial)
     hasCast = MS:CastSpell("Exit Strategy")
+    if hasCast then return end
+
+    -- cast Sprint
+    hasCast = MS:CastSpell("Sprint")
     if hasCast then return end
 
     -- use Swiftness Potion
