@@ -45,9 +45,15 @@ function MS:UseBandage()
     local hp = MS:HPPercent("player")
     local items = MS.bandages[zone]
 
-    if hp > 70 then return end
+    if hp > 80 then return end
+
+    local isFriend = UnitIsFriend("player", "target")
+
+    if isFriend then TargetUnit("player") end
 
     local wasUsed = MS:UseBagItemFromList(items)
+
+    if isFriend then TargetLastTarget() end
 
     return wasUsed
 end
@@ -194,4 +200,21 @@ function MS:PetAttack()
             PetAttack()
         end
     end
+end
+
+function MS:Attack()
+    -- target a valid enemy
+    local hasTarget = MS:TargetEnemy()
+    if not hasTarget then return end
+
+    -- can't attack if they are not close
+    local isClose = CheckInteractDistance("target", 3)
+
+    if not isClose then
+        ClearTarget()
+        return
+    end
+
+    -- Start melee auto attacking
+    if not MS.isMeleeAttacking then AttackTarget("target") end
 end

@@ -251,6 +251,10 @@ function MS:StripItem(part)
 end
 
 function MS:GetItemType(itemLink)
+    if itemLink == "" then
+        return "", ""
+    end
+
     local _, _, istring  = string.find(itemLink, "|H(.+)|h")
     local _, _, _, _, itemType, itemSubType = GetItemInfo(istring)
 
@@ -406,16 +410,6 @@ function MS:IsEnemyCaster()
     return isEnemyCaster
 end
 
--- Whether exp or honor
-function MS:YieldsHonorOrExp()
-    local enemyIsPlayer = UnitIsPlayer("target")
-    local lvlDiff = UnitLevel("player") - UnitLevel("target")
-    local mobIsGreen = lvlDiff <= GetQuestGreenRange()
-    local yieldsHonorOrExp = enemyIsPlayer or mobIsGreen
-
-    return yieldsHonorOrExp
-end
-
 -- Get the rank of the talent at tab and idx
 function MS:GetTalent(tab, idx)
     local _, _, _, _, talentRank = GetTalentInfo(tab, idx)
@@ -436,9 +430,9 @@ function MS:Silence(spell)
 
         if castTime > 1 then
             -- wait and act as if silence was a success
-            hasCast = percent < 50
+            hasCast = percent < 30
 
-            if not hasCast and percent >= 50 and percent < 90 then
+            if not hasCast and percent >= 30 and percent < 90 then
                 hasCast = MS:CastSpell(spell)
             end
         end

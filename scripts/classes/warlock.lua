@@ -283,7 +283,7 @@ function MS:WL_Damage()
     local inInstance = IsInInstance()
     local isFireElem = UnitCreatureFamily("target") == "Fire Elemental"
     local isMechanical = UnitCreatureType("target") == "Mechanical"
-    local yieldsHonorOrExp = MS:YieldsHonorOrExp()
+    local yieldsHonorOrExp = not UnitIsTrivial("target")
     local hasBubble = MS:FindBuff("Sacrifice", "player")
     local imSafe = not imTarget or not isClose or hasBubble
 
@@ -588,7 +588,7 @@ function MS:WL_Drain()
     local myHP = MS:HPPercent("player")
     local enemyHP = MS:HPPercent("target")
     local enemyIsPlayer = UnitIsPlayer("target")
-    local yieldsHonorOrExp = MS:YieldsHonorOrExp()
+    local yieldsHonorOrExp = not UnitIsTrivial("target")
     local enemyHasMana = false
     local shardsAmount = 0
     local onlyOnce = false

@@ -11,9 +11,7 @@ rg:RegisterEvent("UNIT_COMBAT")
 rg:RegisterEvent("PLAYER_TARGET_CHANGED")
 
 rg:SetScript("OnEvent", function()
-    local playerIsNotRogue = UnitClass("player") ~= "Rogue"
-
-    if playerIsNotRogue then
+    if UnitClass("player") ~= "Rogue" then
         rg:UnregisterAllEvents()
         return
     end
@@ -66,14 +64,6 @@ function MS:R_Stealth()
 end
 
 function MS:R_CrowdControl()
-    -- try to get in Stealth
-    local hasStealth = MS:FindBuff("Stealth", "player")
-
-    if not hasStealth then
-        hasStealth = MS:R_Stealth()
-        if hasStealth then return end
-    end
-
     local isValidMouseover =
         not UnitIsUnit("target", "mouseover") and UnitExists("mouseover") and
         not UnitIsDeadOrGhost("mouseover") and not UnitIsFriend("player", "mouseover") and
@@ -119,6 +109,7 @@ function MS:R_CrowdControl()
         return
     end
 
+    local hasStealth = MS:FindBuff("Stealth", "player")
     local hasBleed = MS:FindBuff("Garrote", "target")
     hasBleed = hasBleed or MS:FindBuff("Rupture", "target")
 
@@ -139,9 +130,9 @@ function MS:R_CrowdControl()
         end
 
         -- don't get out of stealth
-        local imSafe = not UnitIsUnit("player", "targettarget")
+        local inCombat = UnitAffectingCombat("player")
 
-        if imSafe then
+        if not inCombat then
             if mouseoverShouldBeStunned then TargetLastTarget() end
             return
         end
@@ -192,6 +183,7 @@ function MS:R_Damage()
     local hp = MS:HPPercent("player")
     local energy = UnitMana("player")
     local level = UnitLevel("player")
+    local inCombat = UnitAffectingCombat("target")
 
     local enemyHP = MS:HPPercent("target")
     local enemyIsPlayer = UnitIsPlayer("target")
@@ -274,11 +266,11 @@ function MS:R_Damage()
         end
 
         -- don't get out of stealth unintentionally
-        if imSafe then return end
+        if not inCombat then return end
     end
 
     -- start melee attack
-    if not MS.isMeleeAttacking and not hasGouge and not hasBlind and not hasSap then
+    if not MS.isMeleeAttacking and not targetIsStunned then
         AttackTarget("target")
     end
 
@@ -325,25 +317,12 @@ function MS:R_Damage()
         if hasCast then return end
     end
 
-    -- cast Slice and Dice
-    local hasSliceAndDice = MS:FindBuff("Slice and Dice", "player")
-
-    if not hasSliceAndDice and comboPoints > 0 and not enemyIsPlayer then
-        local inHighLvlInstance = level >= 60 and inDungOrRaid
-        local normalRequirements = comboPoints == 1 or (comboPoints > 0 and enemyHP < 30)
-
-        if inHighLvlInstance or normalRequirements then
-            hasCast = MS:CastSpell("Slice and Dice")
-            if hasCast then return end
-        end
-    end
-
     -- cast Backstab
     local hasBackstab = MS:FindSpell("Backstab")
 
     if hasBackstab and hasDagger and comboPoints < 5 and (imSafe or rg.tryBackstab) then
         hasCast = MS:CastSpell("Backstab")
-        if hasCast or imSafe then return end
+        if hasCast or (imSafe and (comboPoints < 3 or enemyHP > 40)) then return end
     end
 
     -- reset the Backstab variable
@@ -357,6 +336,16 @@ function MS:R_Damage()
 
         if canRiposte then
             hasCast = MS:CastSpell("Riposte")
+            if hasCast then return end
+        end
+    end
+
+    -- cast Slice and Dice
+    local hasSliceAndDice = MS:FindBuff("Slice and Dice", "player")
+
+    if not hasSliceAndDice and comboPoints > 0 and not enemyIsPlayer then
+        if comboPoints == 1 or (level >= 60 and inDungOrRaid) then
+            hasCast = MS:CastSpell("Slice and Dice")
             if hasCast then return end
         end
     end
