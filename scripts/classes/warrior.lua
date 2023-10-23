@@ -88,17 +88,20 @@ function MS:WAR_SwitchWeapons()
     end
 end
 
--- not related to which weapons are equipped
--- mainly use outside of combat (before entering or after leaving dungeon)
+-- switches between tank and damage mode
 function MS:WAR_SwitchMode()
     local inCombat = UnitAffectingCombat("player")
     local _, _, isBatStance = GetShapeshiftFormInfo(1)
     local _, _, isDefStance = GetShapeshiftFormInfo(2)
+    local _, offSubType = MS:GetItemType(MS:GetEquipmentItemLink("off"))
+    local hasShield = offSubType == "Shields"
 
     if war.imTank then
         if not inCombat and not isBatStance then
             MS:CastSpell(BAT_STANCE)
         end
+
+        if hasShield then MS:WAR_SwitchWeapons() end
 
         MS:Print("DAMAGE MODE")
         war.imTank = false
@@ -106,6 +109,8 @@ function MS:WAR_SwitchMode()
         if not inCombat and not isDefStance then
             MS:CastSpell(DEF_STANCE)
         end
+
+        if not hasShield then MS:WAR_SwitchWeapons() end
 
         MS:Print("TANK MODE")
         war.imTank = true
@@ -375,7 +380,7 @@ function MS:WAR_Damage()
     -- cast Charge or Intercept when not close
     local isClose = CheckInteractDistance("target", 3)
 
-    if not isClose then
+    if not isClose and not inDungOrRaid then
         if not inCombat and hp > 50 then
             if not isBatStance then
                 hasCast = MS:CastSpell(BAT_STANCE)
@@ -415,7 +420,7 @@ function MS:WAR_Damage()
     -- cast Execute
     local hasExecute = MS:FindSpell("Execute")
 
-    if hasExecute and enemyHP <= 20 then
+    if hasExecute and enemyHP <= 20 and rage >= 10 then
         if isDefStance then
             if hp > 50 then
                 hasCast = MS:CastSpell(BER_STANCE)
@@ -430,23 +435,9 @@ function MS:WAR_Damage()
         if hasCast then return end
     end
 
-    -- cast Revenge
-    local hasRevenge, isRevengeOnCD = MS:FindSpell("Revenge")
-    local canRevenge = ((GetTime() - war.lastMitigate) < 5)
-
-    if hasRevenge and not isRevengeOnCD and canRevenge and war.imTank then
-        if not isDefStance then
-            hasCast = MS:CastSpell(DEF_STANCE)
-            if hasCast then return end
-        end
-
-        hasCast = MS:CastSpell("Revenge")
-        if hasCast then return end
-    end
-
     -- cast Overpower
     local hasOverpower, isOverpowerOnCD = MS:FindSpell("Overpower")
-    local canOverpower = ((GetTime() - war.lastDodge) < 5)
+    local canOverpower = (GetTime() - war.lastDodge) < 5
 
     if hasOverpower and not isOverpowerOnCD and canOverpower then
         if not isBatStance then
@@ -455,6 +446,20 @@ function MS:WAR_Damage()
         end
 
         hasCast = MS:CastSpell("Overpower")
+        if hasCast then return end
+    end
+
+    -- cast Revenge
+    local hasRevenge, isRevengeOnCD = MS:FindSpell("Revenge")
+    local canRevenge = (GetTime() - war.lastMitigate) < 5
+
+    if hasRevenge and not isRevengeOnCD and canRevenge and (war.imTank or not inDungOrRaid) then
+        if not isDefStance then
+            hasCast = MS:CastSpell(DEF_STANCE)
+            if hasCast then return end
+        end
+
+        hasCast = MS:CastSpell("Revenge")
         if hasCast then return end
     end
 
@@ -540,8 +545,9 @@ function MS:WAR_Damage()
 
     -- cast Sunder Armor
     local hasSunder, sunderStacks = MS:FindBuff("Sunder Armor", "target")
+    local shouldSunder = isEliteMob or (level >= 22 and not isTrivial)
 
-    if (isEliteMob or level >= 22) and enemyHP > 50 and (not hasSunder or sunderStacks < 5) then
+    if shouldSunder and enemyHP > 50 and (not hasSunder or sunderStacks < 5) then
         hasCast = MS:CastSpell("Sunder Armor")
         if hasCast then return end
     end
@@ -557,7 +563,7 @@ function MS:WAR_Damage()
     end
 
     -- cast Heroic Strike
-    if rage >= 20 and enemyHP > 20 and (war.imTank or not inDungOrRaid) then
+    if rage >= 20 and (war.imTank or not inDungOrRaid) then
         hasCast = MS:CastSpell("Heroic Strike")
         if hasCast then return end
     end
